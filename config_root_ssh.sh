@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# ╔═══════════════════════════════════════════════════════════╗
-# ║       🔐 SCRIPT DE CONFIGURACIÓN DE ROOT Y SSH + FIREWALL           ║
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║       🔐 SCRIPT DE CONFIGURACIÓN DE ROOT Y SSH                       ║
 # ║           Autor: ChristopherAGT - Guatemalteco 🇬🇹                   ║
-# ╚═══════════════════════════════════════════════════════════╝
+# ╚══════════════════════════════════════════════════════════════════════╝
 
 # 🎨 Colores y formato
 VERDE="\033[1;32m"
@@ -20,7 +20,7 @@ spinner() {
   local delay=0.1
   local spinstr='|/-\'
   echo -ne "${AMARILLO}"
-  while kill -0 $pid 2>/dev/null; do
+  while ps -p $pid &>/dev/null; do
     local temp=${spinstr#?}
     printf " [%c]  " "$spinstr"
     local spinstr=$temp${spinstr%"$temp"}
@@ -34,8 +34,7 @@ spinner() {
 if [[ "$EUID" -ne 0 ]]; then
   echo -e "${ROJO}⚠️ Este script requiere permisos de administrador.${NEUTRO}"
   echo -e "${AMARILLO}🔁 Reintentando con sudo...${NEUTRO}\n"
-  sudo bash "$0" "$@"
-  exit
+  exec sudo bash "$0" "$@"
 fi
 
 clear
@@ -45,10 +44,12 @@ echo -e "╚══════════════════════�
 
 # 🔥 Limpiar iptables
 echo -e "${AMARILLO}🧹 Limpiando reglas de iptables...${NEUTRO}"
-iptables -F > /dev/null 2>&1 & spinner
-if [ $? -ne 0 ]; then
-  echo -e "${ROJO}❌ Error al limpiar reglas de iptables.${NEUTRO}"
-fi
+iptables -F & spinner
+
+# ➕ Permitir tráfico esencial
+iptables -A INPUT -i lo -j ACCEPT
+iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -A INPUT -p tcp --dport 22 -j ACCEPT  # SSH
 
 # 🌐 Configurar DNS
 echo -e "${AMARILLO}🌍 Estableciendo DNS de Cloudflare y Google...${NEUTRO}"
@@ -56,16 +57,10 @@ cat > /etc/resolv.conf <<EOF
 nameserver 1.1.1.1
 nameserver 8.8.8.8
 EOF
-if [ $? -ne 0 ]; then
-  echo -e "${ROJO}❌ Error al configurar /etc/resolv.conf.${NEUTRO}"
-fi
 
 # 🔄 Actualizar paquetes
 echo -e "${AZUL}📦 Actualizando el sistema...${NEUTRO}"
-apt update -y > /dev/null 2>&1 & spinner
-if [ $? -ne 0 ]; then
-  echo -e "${ROJO}❌ Error al actualizar paquetes.${NEUTRO}"
-fi
+apt update -y & spinner
 
 # 🛠️ Configuración de SSH
 SSH_CONFIG="/etc/ssh/sshd_config"
@@ -79,7 +74,7 @@ reemplazar_o_agregar() {
   local buscar="$2"
   local reemplazo="$3"
   if grep -q "$buscar" "$archivo"; then
-    sed -i "s/$buscar/$reemplazo/g" "$archivo" > /dev/null 2>&1
+    sed -i "s/$buscar/$reemplazo/g" "$archivo"
   else
     echo "$reemplazo" >> "$archivo"
   fi
@@ -87,27 +82,16 @@ reemplazar_o_agregar() {
 
 reemplazar_o_agregar "$SSH_CONFIG" "prohibit-password" "yes"
 reemplazar_o_agregar "$SSH_CONFIG" "without-password" "yes"
-sed -i "s/^#\?PermitRootLogin.*/PermitRootLogin yes/g" "$SSH_CONFIG" > /dev/null 2>&1
-sed -i "s/^#\?PasswordAuthentication.*/PasswordAuthentication yes/g" "$SSH_CONFIG" > /dev/null 2>&1
+sed -i "s/^#\?PermitRootLogin.*/PermitRootLogin yes/g" "$SSH_CONFIG"
+sed -i "s/^#\?PasswordAuthentication.*/PasswordAuthentication yes/g" "$SSH_CONFIG"
 
 if [ -f "$SSH_CONFIG_CLOUDIMG" ]; then
-  sed -i "s/PasswordAuthentication no/PasswordAuthentication yes/g" "$SSH_CONFIG_CLOUDIMG" > /dev/null 2>&1
+  sed -i "s/PasswordAuthentication no/PasswordAuthentication yes/g" "$SSH_CONFIG_CLOUDIMG"
 fi
 
 # 🔄 Reiniciar servicio SSH
 echo -e "${AZUL}🔁 Reiniciando SSH para aplicar cambios...${NEUTRO}"
-(systemctl restart ssh > /dev/null 2>&1 || service ssh restart > /dev/null 2>&1) & spinner
-if [ $? -ne 0 ]; then
-  echo -e "${ROJO}❌ Error al reiniciar el servicio SSH.${NEUTRO}"
-fi
-
-# 🔓 Abrir puertos importantes
-echo -e "${AMARILLO}🌐 Configurando iptables: abriendo puertos TCP comunes...${NEUTRO}"
-iptables -F > /dev/null 2>&1
-PUERTOS=(81 80 443 8799 8080 1194)
-for puerto in "${PUERTOS[@]}"; do
-  iptables -A INPUT -p tcp --dport "$puerto" -j ACCEPT > /dev/null 2>&1
-done
+systemctl restart ssh || service ssh restart
 
 # 🔐 Solicitar nueva contraseña root
 echo -ne "\n${VERDE}${NEGRITA}📝 Ingresa la nueva contraseña para el usuario ROOT:${NEUTRO} "
@@ -119,11 +103,7 @@ if [[ -z "$nueva_pass" ]]; then
   exit 1
 fi
 
-echo "root:$nueva_pass" | chpasswd > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-  echo -e "${ROJO}❌ Error al actualizar la contraseña.${NEUTRO}"
-  exit 1
-fi
+echo "root:$nueva_pass" | chpasswd
 echo -e "${VERDE}✅ Contraseña actualizada correctamente.${NEUTRO}"
 
 # ⚠️ Advertencia
