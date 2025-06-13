@@ -1,20 +1,19 @@
 #!/bin/bash
 
 # ╔══════════════════════════════════════════════════════════════════════╗
-# ║       🔐 SCRIPT DE CONFIGURACIÓN DE ROOT Y SSH + FIREWALL           ║
-# ║           Autor: ChristopherAGT - Guatemalteco 🇬🇹                   ║
+# ║                🔐 SCRIPT DE CONFIGURACIÓN DE ROOT Y SSH (MEJORADO)               ║
+# ║                  Autor: ChristopherAGT - Guatemalteco 🇬🇹                         ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
-# 🎨 Colores y formato
+# 🎨 Colores y estilos
 VERDE="\033[1;32m"
 ROJO="\033[1;31m"
 AMARILLO="\033[1;33m"
 AZUL="\033[1;34m"
 NEGRITA="\033[1m"
-NORMAL="\033[0m"
 NEUTRO="\033[0m"
 
-# ⏳ Spinner de carga
+# ⏳ Spinner para tareas en segundo plano
 spinner() {
   local pid=$!
   local delay=0.1
@@ -23,48 +22,43 @@ spinner() {
   while [ "$(ps a | awk '{print $1}' | grep "$pid")" ]; do
     local temp=${spinstr#?}
     printf " [%c]  " "$spinstr"
-    local spinstr=$temp${spinstr%"$temp"}
+    spinstr=$temp${spinstr%"$temp"}
     sleep $delay
     printf "\b\b\b\b\b\b"
   done
   echo -ne "${NEUTRO}"
 }
 
-# 🛡️ Verificar si se ejecuta como root, y si no, relanzar con sudo
+# 🛡️ Asegurar ejecución como root o relanzar con sudo
 if [[ "$EUID" -ne 0 ]]; then
   echo -e "${ROJO}⚠️ Este script requiere permisos de administrador.${NEUTRO}"
   echo -e "${AMARILLO}🔁 Reintentando con sudo...${NEUTRO}\n"
-  sudo bash "$0" "$@"
-  exit
+  exec sudo bash "$0" "$@"
 fi
 
 clear
 echo -e "${AZUL}${NEGRITA}╔════════════════════════════════════════════╗"
 echo -e "║      🔐 CONFIGURACIÓN ROOT Y SSH           ║"
-echo -e "╚════════════════════════════════════════════╝${NORMAL}\n"
+echo -e "╚════════════════════════════════════════════╝${NEUTRO}\n"
 
-# 🔥 Limpiar iptables
-echo -e "${AMARILLO}🧹 Limpiando reglas de iptables...${NEUTRO}"
-iptables -F & spinner
-
-# 🌐 Configurar DNS
-echo -e "${AMARILLO}🌍 Estableciendo DNS de Cloudflare y Google...${NEUTRO}"
+# 🌍 Establecer DNS públicos confiables
+echo -e "${AMARILLO}🌐 Configurando DNS de Cloudflare y Google...${NEUTRO}"
 cat > /etc/resolv.conf <<EOF
 nameserver 1.1.1.1
 nameserver 8.8.8.8
 EOF
 
-# 🔄 Actualizar paquetes
-echo -e "${AZUL}📦 Actualizando el sistema...${NEUTRO}"
+# 🔄 Actualización de paquetes
+echo -e "${AZUL}📦 Actualizando lista de paquetes...${NEUTRO}"
 apt update -y & spinner
 
-# 🛠️ Configuración de SSH
+# 🔧 Configuración de SSH
 SSH_CONFIG="/etc/ssh/sshd_config"
 SSH_CONFIG_CLOUDIMG="/etc/ssh/sshd_config.d/60-cloudimg-settings.conf"
 
-echo -e "${AMARILLO}🔧 Configurando acceso root por SSH...${NEUTRO}"
+echo -e "${AMARILLO}🔐 Configurando acceso root y autenticación por contraseña en SSH...${NEUTRO}"
 
-# Función para reemplazar o agregar configuraciones
+# Función para reemplazar o agregar líneas de configuración
 reemplazar_o_agregar() {
   local archivo="$1"
   local buscar="$2"
@@ -76,26 +70,20 @@ reemplazar_o_agregar() {
   fi
 }
 
+# Cambios en sshd_config
 reemplazar_o_agregar "$SSH_CONFIG" "prohibit-password" "yes"
 reemplazar_o_agregar "$SSH_CONFIG" "without-password" "yes"
 sed -i "s/^#\?PermitRootLogin.*/PermitRootLogin yes/g" "$SSH_CONFIG"
 sed -i "s/^#\?PasswordAuthentication.*/PasswordAuthentication yes/g" "$SSH_CONFIG"
 
+# Archivo cloudimg (solo si existe)
 if [ -f "$SSH_CONFIG_CLOUDIMG" ]; then
   sed -i "s/PasswordAuthentication no/PasswordAuthentication yes/g" "$SSH_CONFIG_CLOUDIMG"
 fi
 
-# 🔄 Reiniciar servicio SSH
-echo -e "${AZUL}🔁 Reiniciando SSH para aplicar cambios...${NEUTRO}"
+# 🔁 Reiniciar SSH para aplicar cambios
+echo -e "${AZUL}🔁 Reiniciando el servicio SSH...${NEUTRO}"
 systemctl restart ssh || service ssh restart
-
-# 🔓 Abrir puertos importantes
-echo -e "${AMARILLO}🌐 Configurando iptables: abriendo puertos TCP comunes...${NEUTRO}"
-iptables -F
-PUERTOS=(81 80 443 8799 8080 1194)
-for puerto in "${PUERTOS[@]}"; do
-  iptables -A INPUT -p tcp --dport "$puerto" -j ACCEPT
-done
 
 # 🔐 Solicitar nueva contraseña root
 echo -ne "\n${VERDE}${NEGRITA}📝 Ingresa la nueva contraseña para el usuario ROOT:${NEUTRO} "
@@ -108,11 +96,11 @@ if [[ -z "$nueva_pass" ]]; then
 fi
 
 echo "root:$nueva_pass" | chpasswd
-echo -e "${VERDE}✅ Contraseña actualizada correctamente.${NEUTRO}"
+echo -e "${VERDE}✅ Contraseña actualizada exitosamente.${NEUTRO}"
 
-# ⚠️ Advertencia
+# ⚠️ Advertencia de seguridad
 echo -e "\n${ROJO}${NEGRITA}⚠️ IMPORTANTE:${NEUTRO} Este script habilita el acceso SSH root con contraseña."
-echo -e "${ROJO}Se recomienda combinarlo con otras medidas de seguridad como fail2ban, firewall o acceso por VPN.${NEUTRO}"
+echo -e "${ROJO}Se recomienda usar medidas de seguridad como firewall, fail2ban o acceso por VPN.${NEUTRO}"
 
-# 🎉 Fin
-echo -e "\n${VERDE}${NEGRITA}🎉 Script ejecutado exitosamente. Tu servidor está listo.${NEUTRO}\n"
+# ✅ Fin del script
+echo -e "\n${VERDE}${NEGRITA}🎉 ¡Todo listo! Tu servidor ha sido configurado correctamente.${NEUTRO}\n"
