@@ -1,52 +1,70 @@
 #!/bin/bash
-# ╔════════════════════════════════════════════════════════════════╗
-# ║            SCRIPT DE CONFIGURACIÓN DE ROOT Y SSH               ║
-# ║           Autor: ChristopherAGT - Guatemalteco 🇬🇹              ║
-# ╚════════════════════════════════════════════════════════════════╝
 
-# 🛑 Verificar si se ejecuta como root
-if [[ "$EUID" -ne 0 ]]; then
-  echo -e "\n\033[1;31m🚫 ERROR: Debes ejecutar este script como usuario ROOT o con sudo.\033[0m"
-  echo -e "\033[1;33mEjemplo:\033[0m sudo bash $0\n"
-  exit 1
-fi
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║       🔐 SCRIPT DE CONFIGURACIÓN DE ROOT Y SSH + FIREWALL           ║
+# ║           Autor: ChristopherAGT - Guatemalteco 🇬🇹                   ║
+# ╚══════════════════════════════════════════════════════════════════════╝
 
-# 🎨 Colores para el script
+# 🎨 Colores y formato
 VERDE="\033[1;32m"
 ROJO="\033[1;31m"
 AMARILLO="\033[1;33m"
 AZUL="\033[1;34m"
 NEGRITA="\033[1m"
 NORMAL="\033[0m"
+NEUTRO="\033[0m"
+
+# ⏳ Spinner de carga
+spinner() {
+  local pid=$!
+  local delay=0.1
+  local spinstr='|/-\'
+  echo -ne "${AMARILLO}"
+  while [ "$(ps a | awk '{print $1}' | grep "$pid")" ]; do
+    local temp=${spinstr#?}
+    printf " [%c]  " "$spinstr"
+    local spinstr=$temp${spinstr%"$temp"}
+    sleep $delay
+    printf "\b\b\b\b\b\b"
+  done
+  echo -ne "${NEUTRO}"
+}
+
+# 🛡️ Verificar si se ejecuta como root, y si no, relanzar con sudo
+if [[ "$EUID" -ne 0 ]]; then
+  echo -e "${ROJO}⚠️ Este script requiere permisos de administrador.${NEUTRO}"
+  echo -e "${AMARILLO}🔁 Reintentando con sudo...${NEUTRO}\n"
+  sudo bash "$0" "$@"
+  exit
+fi
 
 clear
 echo -e "${AZUL}${NEGRITA}╔════════════════════════════════════════════╗"
 echo -e "║      🔐 CONFIGURACIÓN ROOT Y SSH           ║"
 echo -e "╚════════════════════════════════════════════╝${NORMAL}\n"
 
-# 🔥 Limpieza reglas firewall iptables
-echo -e "${AMARILLO}→ Limpiando reglas iptables existentes...${NORMAL}"
-iptables -F
+# 🔥 Limpiar iptables
+echo -e "${AMARILLO}🧹 Limpiando reglas de iptables...${NEUTRO}"
+iptables -F & spinner
 
-# 🌐 Configuración DNS pública (Cloudflare y Google)
-echo -e "${AMARILLO}→ Configurando DNS públicos...${NORMAL}"
+# 🌐 Configurar DNS
+echo -e "${AMARILLO}🌍 Estableciendo DNS de Cloudflare y Google...${NEUTRO}"
 cat > /etc/resolv.conf <<EOF
 nameserver 1.1.1.1
 nameserver 8.8.8.8
 EOF
 
-# 📦 Actualizar lista de paquetes
-echo -e "${AMARILLO}→ Actualizando lista de paquetes (apt)...${NORMAL}"
-apt update -y
+# 🔄 Actualizar paquetes
+echo -e "${AZUL}📦 Actualizando el sistema...${NEUTRO}"
+apt update -y & spinner
 
-# 🛠️ Configuración SSH para permitir root y autenticación por contraseña
-
+# 🛠️ Configuración de SSH
 SSH_CONFIG="/etc/ssh/sshd_config"
 SSH_CONFIG_CLOUDIMG="/etc/ssh/sshd_config.d/60-cloudimg-settings.conf"
 
-echo -e "${AMARILLO}→ Configurando SSH para permitir acceso root y autenticación por contraseña...${NORMAL}"
+echo -e "${AMARILLO}🔧 Configurando acceso root por SSH...${NEUTRO}"
 
-# Función para reemplazar texto en archivos si existe
+# Función para reemplazar o agregar configuraciones
 reemplazar_o_agregar() {
   local archivo="$1"
   local buscar="$2"
@@ -58,50 +76,43 @@ reemplazar_o_agregar() {
   fi
 }
 
-# Modificaciones importantes
 reemplazar_o_agregar "$SSH_CONFIG" "prohibit-password" "yes"
 reemplazar_o_agregar "$SSH_CONFIG" "without-password" "yes"
-
-# Descomentar y habilitar PermitRootLogin
 sed -i "s/^#\?PermitRootLogin.*/PermitRootLogin yes/g" "$SSH_CONFIG"
-
-# Activar PasswordAuthentication
 sed -i "s/^#\?PasswordAuthentication.*/PasswordAuthentication yes/g" "$SSH_CONFIG"
 
-# Configurar también el archivo cloudimg si existe
 if [ -f "$SSH_CONFIG_CLOUDIMG" ]; then
   sed -i "s/PasswordAuthentication no/PasswordAuthentication yes/g" "$SSH_CONFIG_CLOUDIMG"
 fi
 
-# Reiniciar SSH para aplicar cambios
-echo -e "${AMARILLO}→ Reiniciando servicio SSH...${NORMAL}"
+# 🔄 Reiniciar servicio SSH
+echo -e "${AZUL}🔁 Reiniciando SSH para aplicar cambios...${NEUTRO}"
 systemctl restart ssh || service ssh restart
 
-# 🔥 Configuración de iptables: limpiar y abrir puertos importantes
-echo -e "${AMARILLO}→ Configurando reglas iptables: abriendo puertos TCP comunes...${NORMAL}"
+# 🔓 Abrir puertos importantes
+echo -e "${AMARILLO}🌐 Configurando iptables: abriendo puertos TCP comunes...${NEUTRO}"
 iptables -F
-
 PUERTOS=(81 80 443 8799 8080 1194)
 for puerto in "${PUERTOS[@]}"; do
   iptables -A INPUT -p tcp --dport "$puerto" -j ACCEPT
 done
 
-# 🚨 Solicitar nueva contraseña root
-echo -ne "\n${VERDE}${NEGRITA}→ ESCRIBE LA NUEVA CONTRASEÑA ROOT:${NORMAL} "
+# 🔐 Solicitar nueva contraseña root
+echo -ne "\n${VERDE}${NEGRITA}📝 Ingresa la nueva contraseña para el usuario ROOT:${NEUTRO} "
 read -s nueva_pass
 echo
 
 if [[ -z "$nueva_pass" ]]; then
-  echo -e "${ROJO}⚠️ Contraseña vacía. No se realizó ningún cambio.${NORMAL}"
+  echo -e "${ROJO}❌ No ingresaste ninguna contraseña. Cancelando...${NEUTRO}"
   exit 1
 fi
 
 echo "root:$nueva_pass" | chpasswd
+echo -e "${VERDE}✅ Contraseña actualizada correctamente.${NEUTRO}"
 
-echo -e "\n${VERDE}${NEGRITA}✅ CONTRASEÑA ROOT ACTUALIZADA CON ÉXITO${NORMAL}"
+# ⚠️ Advertencia
+echo -e "\n${ROJO}${NEGRITA}⚠️ IMPORTANTE:${NEUTRO} Este script habilita el acceso SSH root con contraseña."
+echo -e "${ROJO}Se recomienda combinarlo con otras medidas de seguridad como fail2ban, firewall o acceso por VPN.${NEUTRO}"
 
-# ⚠️ Advertencia final
-echo -e "\n${ROJO}${NEGRITA}IMPORTANTE:${NORMAL} Este script habilita el acceso root vía SSH y autenticación por contraseña,"
-echo -e "${ROJO}${NEGRITA}lo que puede ser un riesgo de seguridad si no se usan medidas adicionales como firewall, fail2ban o VPN.\n${NORMAL}"
-
-echo -e "${AZUL}Script finalizado.${NORMAL}\n"
+# 🎉 Fin
+echo -e "\n${VERDE}${NEGRITA}🎉 Script ejecutado exitosamente. Tu servidor está listo.${NEUTRO}\n"
