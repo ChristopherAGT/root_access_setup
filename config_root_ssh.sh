@@ -18,7 +18,7 @@ RESET="\033[0m"
 print_section() {
   local title="$1"
   echo -e "${MAGENTA}╔════════════════════════════════════════════════════════════════╗${RESET}"
-  echo -e "${MAGENTA}║  $title${RESET}$(printf ' %.0s' {1..$(($(tput cols)-${#title}-4))})${MAGENTA}║${RESET}"
+  echo -e "${MAGENTA}║  $title$(printf ' %.0s' {1..$(($(tput cols)-${#title}-4))})║${RESET}"
   echo -e "${MAGENTA}╚════════════════════════════════════════════════════════════════╝${RESET}"
 }
 
@@ -71,10 +71,10 @@ print_section "🧹 LIMPIANDO REGLAS DE IPTABLES"
 run_with_spinner "🔄 Limpiando reglas iptables" "iptables -F"
 
 print_section "🌍 CONFIGURANDO DNS DE CLOUDFLARE Y GOOGLE"
-run_with_spinner "🔄 Actualizando /etc/resolv.conf" "chattr -i /etc/resolv.conf 2>/dev/null || true && echo -e 'nameserver 1.1.1.1\nnameserver 8.8.8.8' | tee /etc/resolv.conf > /dev/null"
+run_with_spinner "🔄 Actualizando /etc/resolv.conf" "chattr -i /etc/resolv.conf 2>/dev/null && echo -e 'nameserver 1.1.1.1\nnameserver 8.8.8.8' | tee /etc/resolv.conf > /dev/null"
 
 print_section "📦 ACTUALIZANDO EL SISTEMA"
-run_with_spinner "🔄 Ejecutando apt update y upgrade" "apt update && apt upgrade -y"
+run_with_spinner "🔄 Ejecutando apt update y upgrade" "apt update -y && apt upgrade -y"
 
 print_section "🔧 CONFIGURANDO ACCESO ROOT POR SSH"
 SSH_CONFIG="/etc/ssh/sshd_config"
@@ -83,17 +83,41 @@ SSH_CONFIG_CLOUDIMG="/etc/ssh/sshd_config.d/60-cloudimg-settings.conf"
 # Backup antes de modificar
 run_with_spinner "🔄 Creando backup de sshd_config" "cp $SSH_CONFIG ${SSH_CONFIG}.bak"
 
-# Cambiar configuración para permitir root y password
-run_with_spinner "🔄 Modificando $SSH_CONFIG para permitir root y password" "sed -i \
-    -e 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' \
-    -e 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' \
-    $SSH_CONFIG"
-
-if [[ -f "$SSH_CONFIG_CLOUDIMG" ]]; then
-  run_with_spinner "🔄 Modificando $SSH_CONFIG_CLOUDIMG para PasswordAuthentication yes" "sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' $SSH_CONFIG_CLOUDIMG"
+# Modificar o agregar PermitRootLogin yes
+if grep -q "^PermitRootLogin" "$SSH_CONFIG"; then
+  run_with_spinner "🔄 Modificando PermitRootLogin a yes" "sed -i 's/^PermitRootLogin.*/PermitRootLogin yes/' $SSH_CONFIG"
+else
+  run_with_spinner "🔄 Agregando PermitRootLogin yes" "echo 'PermitRootLogin yes' >> $SSH_CONFIG"
 fi
 
-run_with_spinner "🔄 Reiniciando servicio SSH" "systemctl restart ssh || service ssh restart"
+# Modificar o agregar PasswordAuthentication yes
+if grep -q "^PasswordAuthentication" "$SSH_CONFIG"; then
+  run_with_spinner "🔄 Modificando PasswordAuthentication a yes" "sed -i 's/^PasswordAuthentication.*/PasswordAuthentication yes/' $SSH_CONFIG"
+else
+  run_with_spinner "🔄 Agregando PasswordAuthentication yes" "echo 'PasswordAuthentication yes' >> $SSH_CONFIG"
+fi
+
+# Igual para el archivo cloudimg si existe
+if [[ -f "$SSH_CONFIG_CLOUDIMG" ]]; then
+  if grep -q "^PasswordAuthentication" "$SSH_CONFIG_CLOUDIMG"; then
+    run_with_spinner "🔄 Modificando $SSH_CONFIG_CLOUDIMG para PasswordAuthentication yes" "sed -i 's/^PasswordAuthentication.*/PasswordAuthentication yes/' $SSH_CONFIG_CLOUDIMG"
+  else
+    run_with_spinner "🔄 Agregando PasswordAuthentication yes a $SSH_CONFIG_CLOUDIMG" "echo 'PasswordAuthentication yes' >> $SSH_CONFIG_CLOUDIMG"
+  fi
+fi
+
+# Crear directorio necesario para sshd
+mkdir -p /run/sshd
+chmod 0755 /run/sshd
+
+# Validar configuración antes de reiniciar
+if sshd -t; then
+  run_with_spinner "🔄 Reiniciando servicio SSH" "systemctl restart ssh || service ssh restart"
+else
+  echo -e "${RED}❌ Configuración sshd inválida. Revirtiendo cambios...${RESET}"
+  cp "${SSH_CONFIG}.bak" "$SSH_CONFIG"
+  exit 1
+fi
 
 print_section "🔐 CONFIGURANDO CONTRASEÑA DE ROOT"
 
