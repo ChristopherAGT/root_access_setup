@@ -168,5 +168,16 @@ done
 echo -e "\n${ROJO}${NEGRITA}⚠️ IMPORTANTE:${NEUTRO} El acceso root por contraseña está habilitado."
 echo -e "${ROJO}Se recomienda usar medidas de seguridad adicionales (fail2ban, firewall, VPN).${NEUTRO}"
 
-# ✅ Final
-print_section "🎉 SCRIPT FINALIZADO CON ÉXITO"
+# 🧾 RESUMEN DE CONFIGURACIÓN
+print_section "📄 RESUMEN DE CONFIGURACIÓN"
+
+echo -e "${VERDE}✔ Acceso root por SSH habilitado"
+echo -e "✔ Contraseña de root actualizada"
+echo -e "✔ DNS configurado (1.1.1.1 y 8.8.8.8)"
+echo -e "✔ Reglas básicas de iptables aplicadas"
+echo -e "✔ Sistema actualizado (${OS_NAME})"
+echo -e "\n${AZUL}ℹ Puedes conectarte vía SSH así:${NEUTRO}"
+echo -e "${NEGRITA}ssh root@$(hostname -I | awk '{print \$1}')${NEUTRO}"
+
+# 🎉 MENSAJE FINAL
+print_section "✅️ CONFIGURACIÓN COMPLETA Y SERVICIO LISTO"
