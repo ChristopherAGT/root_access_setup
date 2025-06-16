@@ -71,7 +71,7 @@ print_section "🧹 LIMPIANDO REGLAS DE IPTABLES"
 run_with_spinner "🔄 Limpiando reglas iptables" "iptables -F"
 
 print_section "🌍 CONFIGURANDO DNS DE CLOUDFLARE Y GOOGLE"
-run_with_spinner "🔄 Actualizando /etc/resolv.conf" "bash -c 'chattr -i /etc/resolv.conf 2>/dev/null && echo -e \"nameserver 1.1.1.1\nnameserver 8.8.8.8\" > /etc/resolv.conf'"
+run_with_spinner "🔄 Actualizando /etc/resolv.conf" "chattr -i /etc/resolv.conf 2>/dev/null && echo -e 'nameserver 1.1.1.1\nnameserver 8.8.8.8' | tee /etc/resolv.conf > /dev/null"
 
 print_section "📦 ACTUALIZANDO EL SISTEMA"
 run_with_spinner "🔄 Ejecutando apt update y upgrade" "apt update -y && apt upgrade -y"
