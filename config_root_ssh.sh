@@ -71,10 +71,10 @@ print_section "🧹 LIMPIANDO REGLAS DE IPTABLES"
 run_with_spinner "🔄 Limpiando reglas iptables" "iptables -F"
 
 print_section "🌍 CONFIGURANDO DNS DE CLOUDFLARE Y GOOGLE"
-run_with_spinner "🔄 Actualizando /etc/resolv.conf" "chattr -i /etc/resolv.conf 2>/dev/null && echo -e 'nameserver 1.1.1.1\nnameserver 8.8.8.8' | tee /etc/resolv.conf > /dev/null"
+run_with_spinner "🔄 Actualizando /etc/resolv.conf" "chattr -i /etc/resolv.conf 2>/dev/null || true && echo -e 'nameserver 1.1.1.1\nnameserver 8.8.8.8' | tee /etc/resolv.conf > /dev/null"
 
 print_section "📦 ACTUALIZANDO EL SISTEMA"
-run_with_spinner "🔄 Ejecutando apt update y upgrade" "apt update -y && apt upgrade -y"
+run_with_spinner "🔄 Ejecutando apt update y upgrade" "apt update && apt upgrade -y"
 
 print_section "🔧 CONFIGURANDO ACCESO ROOT POR SSH"
 SSH_CONFIG="/etc/ssh/sshd_config"
