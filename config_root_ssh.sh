@@ -15,21 +15,18 @@ NEUTRO="\033[0m"
 
 # 🌀 Spinner de carga (solo para comandos largos)
 spinner() {
-  local pid
   "$@" &> /dev/null &
-  pid=$!
+  local pid=$!
   local delay=0.1
   local spinstr='|/-\'
   echo -ne "${AMARILLO}"
   while ps -p $pid &>/dev/null; do
-    local temp=${spinstr#?}
-    printf " [%c]  " "$spinstr"
-    spinstr=$temp${spinstr%"$temp"}
+    printf "\r [%c]  " "${spinstr:0:1}"
+    spinstr=${spinstr:1}${spinstr:0:1}
     sleep $delay
-    printf "\b\b\b\b\b\b"
   done
   wait $pid 2>/dev/null
-  echo -ne "${NEUTRO}"
+  echo -ne "\r${NEUTRO}"
 }
 
 # 📦 Imprimir sección visual
@@ -73,8 +70,9 @@ EOF
 
 # 📦 Actualizar paquetes
 print_section "📦 ACTUALIZANDO EL SISTEMA"
-echo -e "🔄 Ejecutando apt update..."
-spinner apt update -y
+echo -e "🔄 Ejecutando apt update y upgrade..."
+spinner apt update
+apt upgrade -y
 
 # 🔧 Configuración SSH
 print_section "🔧 CONFIGURANDO ACCESO ROOT POR SSH"
@@ -109,9 +107,12 @@ print_section "🔐 CONFIGURANDO CONTRASEÑA DE ROOT"
 echo -ne "${VERDE}${NEGRITA}📝 Ingresa la nueva contraseña para el usuario ROOT:${NEUTRO} "
 read -s nueva_pass
 echo
+echo -ne "${VERDE}${NEGRITA}🔁 Confirma la contraseña:${NEUTRO} "
+read -s confirm_pass
+echo
 
-if [[ -z "$nueva_pass" ]]; then
-  echo -e "${ROJO}❌ No ingresaste ninguna contraseña. Cancelando...${NEUTRO}"
+if [[ -z "$nueva_pass" || "$nueva_pass" != "$confirm_pass" ]]; then
+  echo -e "${ROJO}❌ Las contraseñas no coinciden o están vacías. Cancelando...${NEUTRO}"
   exit 1
 fi
 
