@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # ╔══════════════════════════════════════════════════════════════════════╗
-# ║       🔐 SCRIPT DE CONFIGURACIÓN DE ROOT Y SSH                       ║
-# ║           Autor: ChristopherAGT - Guatemalteco 🇬🇹                   ║
+# ║       🔐 SCRIPT DE CONFIGURACIÓN DE ROOT Y SSH                                    ║
+# ║       👾 Autor: ChristopherAGT - Guatemalteco 🇬🇹                                  ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
 # 🎨 Colores y formato
@@ -178,7 +178,15 @@ echo -e "✔ Reglas básicas de iptables aplicadas"
 echo -e "✔ Sistema actualizado (${OS_NAME})"
 echo -e "\n${AZUL}ℹ Puedes conectarte vía SSH así:${NEUTRO}"
 echo -e "${AZUL}ℹ Puedes conectarte vía SSH así:${NEUTRO}"
-echo -e "${NEGRITA}root@$(hostname -I | awk '{print $1}')${NEGRITA}"
+
+# IP privada (red interna)
+#echo -e "${NEGRITA}➡️ root@$(hostname -I | awk '{print $1}')${NEUTRO}"
+
+# IP pública (internet)
+PUBLIC_IP=$(curl -s ifconfig.co)
+if [[ -n "$PUBLIC_IP" ]]; then
+  echo -e "${NEGRITA}➡️ root@${PUBLIC_IP}${NEUTRO}"
+fi
 
 # 🎉 MENSAJE FINAL
 print_section "✅️ CONFIGURACIÓN COMPLETA Y SERVICIO LISTO"
