@@ -177,7 +177,8 @@ echo -e "✔ DNS configurado (1.1.1.1 y 8.8.8.8)"
 echo -e "✔ Reglas básicas de iptables aplicadas"
 echo -e "✔ Sistema actualizado (${OS_NAME})"
 echo -e "\n${AZUL}ℹ Puedes conectarte vía SSH así:${NEUTRO}"
-echo -e "${NEGRITA}ssh root@$(hostname -I | awk '{print \$1}')${NEUTRO}"
+echo -e "${AZUL}ℹ Puedes conectarte vía SSH así:${NEUTRO}"
+echo -e "${NEGRITA}root@$(hostname -I | awk '{print $1}')${NEGRITA}"
 
 # 🎉 MENSAJE FINAL
 print_section "✅️ CONFIGURACIÓN COMPLETA Y SERVICIO LISTO"
