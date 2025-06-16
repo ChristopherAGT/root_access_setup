@@ -2,7 +2,7 @@
 
 # ╔══════════════════════════════════════════════════════════════════════╗
 # ║       🔐 SCRIPT DE CONFIGURACIÓN DE ROOT Y SSH                      ║
-# ║       👾 Autor: ChristopherAGT - Guatemalteco 🇬🇹                    ║
+# ║       👾 Autor: ChristopherAGT - Guatemalteco 🇬🇹                   ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
 # 🎨 Colores y formato
@@ -13,10 +13,10 @@ AZUL="\033[1;34m"
 NEGRITA="\033[1m"
 NEUTRO="\033[0m"
 
-# ⏳ Spinner de carga
+# ⏳ Spinner de carga, redirigiendo stdout y stderr a /dev/null para evitar logs
 spinner() {
   local pid
-  "$@" &
+  "$@" > /dev/null 2>&1 &  # Ejecuta el comando en background ocultando su salida
   pid=$!
   local delay=0.1
   local spinstr='|/-\'
@@ -54,7 +54,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "🧹  LIMPIANDO REGLAS DE IPTABLES"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "${NEUTRO}"
-iptables -F
+iptables -F   # Comando rápido, sin spinner
 
 # ➕ Permitir tráfico esencial
 iptables -A INPUT -i lo -j ACCEPT
@@ -130,7 +130,9 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "🔐  CONFIGURACIÓN DE CONTRASEÑA PARA EL USUARIO ROOT"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "${NEUTRO}"
-echo -e "${NEGRITA}📝 Ingrese su nueva contraseña:${NEUTRO}"
+
+echo -e "${VERDE}${NEGRITA}Configuración de contraseña para el usuario ROOT${NEUTRO}"
+echo -ne "${VERDE}📝 Ingrese su nueva contraseña: ${NEUTRO}"
 read -s nueva_pass
 echo
 
