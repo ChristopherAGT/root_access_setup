@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # ╔══════════════════════════════════════════════════════════════════════╗
-# ║       🔐 SCRIPT DE CONFIGURACIÓN DE ROOT Y SSH                                    ║
-# ║       👾 Autor: ChristopherAGT - Guatemalteco 🇬🇹                                  ║
+# ║       🔐 SCRIPT DE CONFIGURACIÓN DE ROOT Y SSH                      ║
+# ║       👾 Autor: ChristopherAGT - Guatemalteco 🇬🇹                    ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
 # 🎨 Colores y formato
@@ -54,7 +54,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "🧹  LIMPIANDO REGLAS DE IPTABLES"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "${NEUTRO}"
-spinner iptables -F
+iptables -F
 
 # ➕ Permitir tráfico esencial
 iptables -A INPUT -i lo -j ACCEPT
@@ -130,8 +130,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "🔐  CONFIGURACIÓN DE CONTRASEÑA PARA EL USUARIO ROOT"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo -e "${NEUTRO}"
-
-echo -ne "${VERDE}${NEGRITA}📝 Ingrese su nueva contraseña:${NEUTRO} "
+echo -e "${NEGRITA}📝 Ingrese su nueva contraseña:${NEUTRO}"
 read -s nueva_pass
 echo
 
