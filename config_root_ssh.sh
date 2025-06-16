@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # ╔══════════════════════════════════════════════════════════════════════╗
-# ║       🔐 SCRIPT DE CONFIGURACIÓN DE ROOT Y SSH                       ║
-# ║           Autor: ChristopherAGT - Guatemalteco 🇬🇹                   ║
+# ║       🔐 SCRIPT DE CONFIGURACIÓN DE ROOT Y SSH                                    ║
+# ║       👾 Autor: ChristopherAGT - Guatemalteco 🇬🇹                                  ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
 # 🎨 Colores y formato
@@ -17,13 +17,14 @@ NEUTRO="\033[0m"
 #cp /etc/ssh/sshd_config.bak /etc/ssh/sshd_config (restaurar backup)
 #systemctl restart ssh || service ssh restart (reiniciar servicio)
 
-# ⏳ Spinner de carga (con proceso como argumento)
+# ⏳ Spinner de carga
 spinner() {
   local pid
   "$@" &
   pid=$!
   local delay=0.1
   local spinstr='|/-\'
+  tput civis
   echo -ne "${AMARILLO}"
   while ps -p $pid &>/dev/null; do
     local temp=${spinstr#?}
@@ -34,6 +35,7 @@ spinner() {
   done
   wait $pid 2>/dev/null
   echo -ne "${NEUTRO}"
+  tput cnorm
 }
 
 # 🛡️ Verificar si se ejecuta como root
@@ -44,12 +46,18 @@ if [[ "$EUID" -ne 0 ]]; then
 fi
 
 clear
-echo -e "${AZUL}${NEGRITA}╔════════════════════════════════════════════╗"
-echo -e "║      🔐 CONFIGURACIÓN ROOT Y SSH           ║"
-echo -e "╚════════════════════════════════════════════╝${NEUTRO}\n"
+echo -e "${AZUL}${NEGRITA}"
+echo "╔════════════════════════════════════════════════════════════╗"
+echo "║      🔐 CONFIGURACIÓN DE ROOT Y SSH INICIADA               ║"
+echo "╚════════════════════════════════════════════════════════════╝"
+echo -e "${NEUTRO}"
 
-# 🔥 Limpiar iptables
-echo -e "${AMARILLO}🧹 Limpiando reglas de iptables...${NEUTRO}"
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo -e "${AMARILLO}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🧹  LIMPIANDO REGLAS DE IPTABLES"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo -e "${NEUTRO}"
 spinner iptables -F
 
 # ➕ Permitir tráfico esencial
@@ -57,28 +65,39 @@ iptables -A INPUT -i lo -j ACCEPT
 iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 iptables -A INPUT -p tcp --dport 22 -j ACCEPT  # SSH
 
-# 🌐 Configurar DNS
-echo -e "${AMARILLO}🌍 Estableciendo DNS de Cloudflare y Google...${NEUTRO}"
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo -e "${AMARILLO}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🌍  ESTABLECIENDO DNS DE CLOUDFLARE Y GOOGLE"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo -e "${NEUTRO}"
+
 chattr -i /etc/resolv.conf 2>/dev/null
 cat > /etc/resolv.conf <<EOF
 nameserver 1.1.1.1
 nameserver 8.8.8.8
 EOF
 
-# 🔄 Actualizar paquetes
-echo -e "${AZUL}📦 Actualizando el sistema...${NEUTRO}"
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo -e "${AZUL}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "📦  ACTUALIZANDO EL SISTEMA"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo -e "${NEUTRO}"
 spinner apt update -y
 
-# 🛠️ Configuración de SSH
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo -e "${AMARILLO}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🔧  CONFIGURANDO ACCESO ROOT POR SSH"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo -e "${NEUTRO}"
+
 SSH_CONFIG="/etc/ssh/sshd_config"
 SSH_CONFIG_CLOUDIMG="/etc/ssh/sshd_config.d/60-cloudimg-settings.conf"
 
-echo -e "${AMARILLO}🔧 Configurando acceso root por SSH...${NEUTRO}"
-
-# Backup antes de modificar
 cp "$SSH_CONFIG" "${SSH_CONFIG}.bak"
 
-# Función para reemplazar o agregar configuraciones
 reemplazar_o_agregar() {
   local archivo="$1"
   local buscar="$2"
@@ -99,12 +118,20 @@ if [[ -f "$SSH_CONFIG_CLOUDIMG" ]]; then
   sed -i "s/^PasswordAuthentication no/PasswordAuthentication yes/" "$SSH_CONFIG_CLOUDIMG"
 fi
 
-# 🔄 Reiniciar servicio SSH
-echo -e "${AZUL}🔁 Reiniciando SSH para aplicar cambios...${NEUTRO}"
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo -e "${AZUL}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "🔁  REINICIANDO SSH PARA APLICAR CAMBIOS"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo -e "${NEUTRO}"
 systemctl restart ssh 2>/dev/null || service ssh restart
 
-# 🔐 Solicitar nueva contraseña root
-echo -ne "\n${VERDE}${NEGRITA}📝 Ingresa la nueva contraseña para el usuario ROOT:${NEUTRO} "
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo -e "\n${VERDE}${NEGRITA}"
+echo "╔════════════════════════════════════════════════════════════╗"
+echo "📝 Ingresa la nueva contraseña para el usuario ROOT:"
+echo "╚════════════════════════════════════════════════════════════╝"
+echo -ne "${NEUTRO} "
 read -s nueva_pass
 echo
 
@@ -116,9 +143,17 @@ fi
 echo "root:$nueva_pass" | chpasswd
 echo -e "${VERDE}✅ Contraseña actualizada correctamente.${NEUTRO}"
 
-# ⚠️ Advertencia
-echo -e "\n${ROJO}${NEGRITA}⚠️ IMPORTANTE:${NEUTRO} Este script habilita el acceso SSH root con contraseña."
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo -e "\n${ROJO}${NEGRITA}"
+echo "╔════════════════════════════════════════════════════════════╗"
+echo "⚠️  IMPORTANTE: ACCESO SSH ROOT HABILITADO POR CONTRASEÑA"
+echo "╚════════════════════════════════════════════════════════════╝"
+echo -e "${NEUTRO}"
 echo -e "${ROJO}Se recomienda combinarlo con medidas de seguridad como fail2ban, firewall o VPN.${NEUTRO}"
 
-# 🎉 Fin
-echo -e "\n${VERDE}${NEGRITA}🎉 Script ejecutado exitosamente. Tu servidor está listo.${NEUTRO}\n"
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+echo -e "\n${VERDE}${NEGRITA}"
+echo "╔════════════════════════════════════════════════════════════╗"
+echo "🎉 Script ejecutado exitosamente. Tu servidor está listo.     "
+echo "╚════════════════════════════════════════════════════════════╝"
+echo -e "${NEUTRO}\n"
