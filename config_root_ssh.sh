@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # ╔══════════════════════════════════════════════════════════════════════╗
-# ║       🔐 SCRIPT DE CONFIGURACIÓN DE ROOT Y SSH                       ║
-# ║           Autor: ChristopherAGT - Guatemalteco 🇬🇹                   ║
+# ║       🔐 SCRIPT DE CONFIGURACIÓN DE ROOT Y SSH                                    ║
+# ║       👾 Autor: ChristopherAGT - Guatemalteco 🇬🇹                                  ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
 # 🎨 Colores y formato
