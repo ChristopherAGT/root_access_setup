@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # ╔══════════════════════════════════════════════════════════════════════╗
-# ║       🔐 SCRIPT DE CONFIGURACIÓN DE ROOT Y SSH                       ║
-# ║           Autor: ChristopherAGT - Guatemalteco 🇬🇹                   ║
+# ║       🔐 SCRIPT DE CONFIGURACIÓN DE ROOT Y SSH                                    ║
+# ║       👾 Autor: ChristopherAGT - Guatemalteco 🇬🇹                                  ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
 # 🎨 Colores y formato
@@ -47,7 +47,7 @@ if [[ "$EUID" -ne 0 ]]; then
 fi
 
 clear
-print_section "🔐 INICIANDO CONFIGURACIÓN DE ROOT Y SSH 1"
+print_section "⚙️ PREPARANDO EL ENTORNO DE ACCESO AL SERVIDOR"
 
 # 🧹 Limpiar iptables
 print_section "🧹 LIMPIANDO REGLAS DE IPTABLES"
