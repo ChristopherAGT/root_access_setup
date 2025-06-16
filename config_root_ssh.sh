@@ -1,140 +1,151 @@
 #!/bin/bash
 
-# ╔════════════════════════════════════════════════════════════════════╗
-# ║       🔐 CONFIGURACIÓN DE ROOT Y SSH                                ║
-# ║       👤 Autor: ChristopherAGT                                      ║
-# ║       🛠️ Script para configurar acceso root SSH y actualizar sistema║
-# ╚════════════════════════════════════════════════════════════════════╝
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║       🔐 SCRIPT DE CONFIGURACIÓN DE ROOT Y SSH                       ║
+# ║           Autor: ChristopherAGT - Guatemalteco 🇬🇹                   ║
+# ╚══════════════════════════════════════════════════════════════════════╝
 
-# Colores para presentación
-GREEN="\033[1;32m"
-YELLOW="\033[1;33m"
-CYAN="\033[1;36m"
-RED="\033[1;31m"
-MAGENTA="\033[1;35m"
-RESET="\033[0m"
+# 🎨 Colores y formato
+VERDE="\033[1;32m"
+ROJO="\033[1;31m"
+AMARILLO="\033[1;33m"
+AZUL="\033[1;34m"
+NEGRITA="\033[1m"
+NEUTRO="\033[0m"
 
-# Función para imprimir sección con borde
-print_section() {
-  local title="$1"
-  echo -e "${MAGENTA}╔════════════════════════════════════════════════════════════════╗${RESET}"
-  echo -e "${MAGENTA}║  $title$(printf ' %.0s' {1..$(($(tput cols)-${#title}-4))})║${RESET}"
-  echo -e "${MAGENTA}╚════════════════════════════════════════════════════════════════╝${RESET}"
-}
-
-# Función para mostrar spinner y manejar errores
-run_with_spinner() {
-  local msg="$1"
-  local cmd="$2"
-
-  echo -ne "${CYAN}${msg}...${RESET}"
-  bash -c "$cmd" &>/tmp/root_ssh_spinner.log &
-  local pid=$!
-
+# ⏳ Spinner de carga
+spinner() {
+  local pid
+  "$@" &
+  pid=$!
   local delay=0.1
   local spinstr='|/-\'
-  while kill -0 $pid 2>/dev/null; do
+  echo -ne "${AMARILLO}"
+  while ps -p $pid &>/dev/null; do
     local temp=${spinstr#?}
     printf " [%c]  " "$spinstr"
     spinstr=$temp${spinstr%"$temp"}
     sleep $delay
     printf "\b\b\b\b\b\b"
   done
-  wait $pid
-  local exit_code=$?
-
-  if [ $exit_code -eq 0 ]; then
-    echo -e " ${GREEN}✔️${RESET}"
-  else
-    echo -e " ${RED}❌ Error${RESET}"
-    echo -e "${RED}🛑 Ocurrió un error al ejecutar:${RESET} ${YELLOW}$msg${RESET}"
-    echo -e "${RED}📄 Detalles del error:${RESET}"
-    cat /tmp/root_ssh_spinner.log
-    rm -f /tmp/root_ssh_spinner.log
-    exit 1
-  fi
-  rm -f /tmp/root_ssh_spinner.log
+  wait $pid 2>/dev/null
+  echo -ne "${NEUTRO}"
 }
 
-# Verificar si se ejecuta como root
+# 🛡️ Verificar si se ejecuta como root
 if [[ "$EUID" -ne 0 ]]; then
-  echo -e "${RED}⚠️ Este script requiere permisos de administrador.${RESET}"
-  echo -e "${YELLOW}🔁 Reintentando con sudo...${RESET}\n"
+  echo -e "${ROJO}⚠️ Este script requiere permisos de administrador.${NEUTRO}"
+  echo -e "${AMARILLO}🔁 Reintentando con sudo...${NEUTRO}\n"
   exec sudo bash "$0" "$@"
 fi
 
 clear
 
-print_section "🔐 INICIANDO CONFIGURACIÓN DE ROOT Y SSH"
+echo -e "${AZUL}"
+echo "╔════════════════════════════════════════════════════════════════╗"
+echo "║  🔐 INICIANDO CONFIGURACIÓN DE ROOT Y SSH                     ║"
+echo "╚════════════════════════════════════════════════════════════════╝"
+echo -e "${NEUTRO}"
 
-print_section "🧹 LIMPIANDO REGLAS DE IPTABLES"
-run_with_spinner "🔄 Limpiando reglas iptables" "iptables -F"
+# 🔥 Limpiar iptables
+echo -e "${AZUL}"
+echo "╔════════════════════════════════════════════════════════════════╗"
+echo "║  🧹 LIMPIANDO REGLAS DE IPTABLES                               ║"
+echo "╚════════════════════════════════════════════════════════════════╝"
+echo -e "${NEUTRO}"
+echo -e "${AMARILLO}🔄 Limpiando reglas de iptables...${NEUTRO}"
+spinner iptables -F
 
-print_section "🌍 CONFIGURANDO DNS DE CLOUDFLARE Y GOOGLE"
-run_with_spinner "🔄 Actualizando /etc/resolv.conf" "chattr -i /etc/resolv.conf 2>/dev/null && echo -e 'nameserver 1.1.1.1\nnameserver 8.8.8.8' | tee /etc/resolv.conf > /dev/null"
+# ➕ Permitir tráfico esencial
+iptables -A INPUT -i lo -j ACCEPT
+iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -A INPUT -p tcp --dport 22 -j ACCEPT
 
-print_section "📦 ACTUALIZANDO EL SISTEMA"
-run_with_spinner "🔄 Ejecutando apt update y upgrade" "apt update -y && apt upgrade -y"
+# 🌐 Configurar DNS
+echo -e "${AZUL}"
+echo "╔════════════════════════════════════════════════════════════════╗"
+echo "║  🌍 CONFIGURANDO DNS DE CLOUDFLARE Y GOOGLE                    ║"
+echo "╚════════════════════════════════════════════════════════════════╝"
+echo -e "${NEUTRO}"
+echo -e "${AMARILLO}🔄 Estableciendo DNS de Cloudflare y Google...${NEUTRO}"
+chattr -i /etc/resolv.conf 2>/dev/null
+cat > /etc/resolv.conf <<EOF
+nameserver 1.1.1.1
+nameserver 8.8.8.8
+EOF
 
-print_section "🔧 CONFIGURANDO ACCESO ROOT POR SSH"
+# 🔄 Actualizar paquetes
+echo -e "${AZUL}"
+echo "╔════════════════════════════════════════════════════════════════╗"
+echo "║  📦 ACTUALIZANDO EL SISTEMA                                    ║"
+echo "╚════════════════════════════════════════════════════════════════╝"
+echo -e "${NEUTRO}"
+echo -e "${AMARILLO}🔄 Ejecutando apt update...${NEUTRO}"
+spinner apt update -y
+
+# 🛠️ Configuración de SSH
 SSH_CONFIG="/etc/ssh/sshd_config"
 SSH_CONFIG_CLOUDIMG="/etc/ssh/sshd_config.d/60-cloudimg-settings.conf"
 
+echo -e "${AZUL}"
+echo "╔════════════════════════════════════════════════════════════════╗"
+echo "║  🔧 CONFIGURANDO ACCESO ROOT POR SSH                           ║"
+echo "╚════════════════════════════════════════════════════════════════╝"
+echo -e "${NEUTRO}"
+
 # Backup antes de modificar
-run_with_spinner "🔄 Creando backup de sshd_config" "cp $SSH_CONFIG ${SSH_CONFIG}.bak"
+cp "$SSH_CONFIG" "${SSH_CONFIG}.bak"
 
-# Modificar o agregar PermitRootLogin yes
-if grep -q "^PermitRootLogin" "$SSH_CONFIG"; then
-  run_with_spinner "🔄 Modificando PermitRootLogin a yes" "sed -i 's/^PermitRootLogin.*/PermitRootLogin yes/' $SSH_CONFIG"
-else
-  run_with_spinner "🔄 Agregando PermitRootLogin yes" "echo 'PermitRootLogin yes' >> $SSH_CONFIG"
-fi
-
-# Modificar o agregar PasswordAuthentication yes
-if grep -q "^PasswordAuthentication" "$SSH_CONFIG"; then
-  run_with_spinner "🔄 Modificando PasswordAuthentication a yes" "sed -i 's/^PasswordAuthentication.*/PasswordAuthentication yes/' $SSH_CONFIG"
-else
-  run_with_spinner "🔄 Agregando PasswordAuthentication yes" "echo 'PasswordAuthentication yes' >> $SSH_CONFIG"
-fi
-
-# Igual para el archivo cloudimg si existe
-if [[ -f "$SSH_CONFIG_CLOUDIMG" ]]; then
-  if grep -q "^PasswordAuthentication" "$SSH_CONFIG_CLOUDIMG"; then
-    run_with_spinner "🔄 Modificando $SSH_CONFIG_CLOUDIMG para PasswordAuthentication yes" "sed -i 's/^PasswordAuthentication.*/PasswordAuthentication yes/' $SSH_CONFIG_CLOUDIMG"
+# Función para reemplazar o agregar configuraciones
+reemplazar_o_agregar() {
+  local archivo="$1"
+  local buscar="$2"
+  local reemplazo="$3"
+  if grep -q "$buscar" "$archivo"; then
+    sed -i "s|$buscar|$reemplazo|g" "$archivo"
   else
-    run_with_spinner "🔄 Agregando PasswordAuthentication yes a $SSH_CONFIG_CLOUDIMG" "echo 'PasswordAuthentication yes' >> $SSH_CONFIG_CLOUDIMG"
+    echo "$reemplazo" >> "$archivo"
   fi
+}
+
+reemplazar_o_agregar "$SSH_CONFIG" "prohibit-password" "yes"
+reemplazar_o_agregar "$SSH_CONFIG" "without-password" "yes"
+sed -i "s/^#\?PermitRootLogin.*/PermitRootLogin yes/" "$SSH_CONFIG"
+sed -i "s/^#\?PasswordAuthentication.*/PasswordAuthentication yes/" "$SSH_CONFIG"
+
+if [[ -f "$SSH_CONFIG_CLOUDIMG" ]]; then
+  sed -i "s/^PasswordAuthentication no/PasswordAuthentication yes/" "$SSH_CONFIG_CLOUDIMG"
 fi
 
-# Crear directorio necesario para sshd
-mkdir -p /run/sshd
-chmod 0755 /run/sshd
+echo -e "${AMARILLO}🔄 Reiniciando SSH para aplicar cambios...${NEUTRO}"
+systemctl restart ssh 2>/dev/null || service ssh restart
 
-# Validar configuración antes de reiniciar
-if sshd -t; then
-  run_with_spinner "🔄 Reiniciando servicio SSH" "systemctl restart ssh || service ssh restart"
-else
-  echo -e "${RED}❌ Configuración sshd inválida. Revirtiendo cambios...${RESET}"
-  cp "${SSH_CONFIG}.bak" "$SSH_CONFIG"
-  exit 1
-fi
+# 🔐 Solicitar nueva contraseña root
+echo -e "${AZUL}"
+echo "╔════════════════════════════════════════════════════════════════╗"
+echo "║  🔐 CONFIGURANDO CONTRASEÑA DE ROOT                            ║"
+echo "╚════════════════════════════════════════════════════════════════╝"
+echo -e "${NEUTRO}"
 
-print_section "🔐 CONFIGURANDO CONTRASEÑA DE ROOT"
-
-echo -ne "${GREEN}📝 Ingrese nueva contraseña para root: ${RESET}"
-read -s pass_root
+echo -ne "${VERDE}${NEGRITA}📝 Ingresa la nueva contraseña para el usuario ROOT:${NEUTRO} "
+read -s nueva_pass
 echo
 
-if [[ -z "$pass_root" ]]; then
-  echo -e "${RED}❌ No ingresaste contraseña. Abortando...${RESET}"
+if [[ -z "$nueva_pass" ]]; then
+  echo -e "${ROJO}❌ No ingresaste ninguna contraseña. Cancelando...${NEUTRO}"
   exit 1
 fi
 
-run_with_spinner "🔄 Actualizando contraseña de root" "echo 'root:$pass_root' | chpasswd"
+echo "root:$nueva_pass" | chpasswd
+echo -e "${VERDE}✅ Contraseña actualizada correctamente.${NEUTRO}"
 
-echo -e "${GREEN}✅ Contraseña de root actualizada correctamente.${RESET}"
+# ⚠️ Advertencia
+echo -e "\n${ROJO}${NEGRITA}⚠️ IMPORTANTE:${NEUTRO} Este script habilita el acceso SSH root con contraseña."
+echo -e "${ROJO}Se recomienda combinarlo con medidas de seguridad como fail2ban, firewall o VPN.${NEUTRO}"
 
-echo -e "\n${RED}⚠️ IMPORTANTE:${RESET} Este script habilita acceso SSH root con contraseña."
-echo -e "${YELLOW}Se recomienda usar junto con medidas de seguridad (firewall, fail2ban, VPN).${RESET}"
-
-print_section "🎉 SCRIPT FINALIZADO CON ÉXITO"
+# 🎉 Fin
+echo -e "${AZUL}"
+echo "╔════════════════════════════════════════════════════════════════╗"
+echo "║  🎉 SCRIPT FINALIZADO CON ÉXITO                                ║"
+echo "╚════════════════════════════════════════════════════════════════╝"
+echo -e "${NEUTRO}"
