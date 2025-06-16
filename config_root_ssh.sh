@@ -50,7 +50,7 @@ if [[ "$EUID" -ne 0 ]]; then
 fi
 
 clear
-print_section "🔐 INICIANDO CONFIGURACIÓN DE ROOT Y SSH"
+print_section "🔐 INICIANDO CONFIGURACIÓN DE ROOT Y SSH 1"
 
 # 🧹 Limpiar iptables
 print_section "🧹 LIMPIANDO REGLAS DE IPTABLES"
