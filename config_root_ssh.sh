@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # ╔══════════════════════════════════════════════════════════════════════╗
-# ║       🔐 SCRIPT DE CONFIGURACIÓN DE ROOT Y SSH                                    ║
-# ║       👾 Autor: ChristopherAGT - Guatemalteco 🇬🇹                                  ║
+# ║       🔐 SCRIPT DE CONFIGURACIÓN DE ROOT Y SSH                       ║
+# ║           Autor: ChristopherAGT - Guatemalteco 🇬🇹                   ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
 # 🎨 Colores y formato
@@ -13,7 +13,7 @@ AZUL="\033[1;34m"
 NEGRITA="\033[1m"
 NEUTRO="\033[0m"
 
-# 🌀 Spinner de carga (solo para comandos largos)
+# 🌀 Spinner para comandos largos
 spinner() {
   local pid
   "$@" &> /dev/null &
@@ -32,7 +32,7 @@ spinner() {
   echo -ne "${NEUTRO}"
 }
 
-# 📦 Imprimir sección visual
+# 🖼️ Sección visual destacada
 print_section() {
   local title="$1"
   echo -e "${AZUL}${NEGRITA}"
@@ -49,22 +49,35 @@ if [[ "$EUID" -ne 0 ]]; then
   exec sudo bash "$0" "$@"
 fi
 
+# 🌎 Detectar sistema operativo
+detect_os() {
+  if [ -e /etc/os-release ]; then
+    . /etc/os-release
+    OS_ID="$ID"
+    OS_NAME="$NAME"
+  else
+    echo -e "${ROJO}❌ No se pudo detectar el sistema operativo.${NEUTRO}"
+    exit 1
+  fi
+}
+detect_os
+
 clear
-print_section "🔐 INICIANDO CONFIGURACIÓN DE ROOT Y SSH"
+print_section "⚙️ INICIANDO CONFIGURACIÓN DE ROOT Y SSH EN $OS_NAME"
 
 # 🧹 Limpiar iptables
 print_section "🧹 LIMPIANDO REGLAS DE IPTABLES"
 echo -e "🔄 Limpiando reglas de iptables..."
 iptables -F || echo -e "${ROJO}❌ Error al limpiar iptables.${NEUTRO}"
 
-# ➕ Permitir tráfico esencial
+# ➕ Permitir tráfico básico
 iptables -A INPUT -i lo -j ACCEPT
 iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 iptables -A INPUT -p tcp --dport 22 -j ACCEPT
 
 # 🌐 Configurar DNS
 print_section "🌍 CONFIGURANDO DNS DE CLOUDFLARE Y GOOGLE"
-echo -e "🔄 Estableciendo DNS de Cloudflare y Google..."
+echo -e "🔄 Estableciendo DNS..."
 chattr -i /etc/resolv.conf 2>/dev/null
 cat > /etc/resolv.conf <<EOF
 nameserver 1.1.1.1
@@ -72,23 +85,32 @@ nameserver 8.8.8.8
 EOF
 chattr +i /etc/resolv.conf 2>/dev/null
 
-# 📦 Actualizar paquetes
+# 📦 Actualizar sistema según distro
 print_section "📦 ACTUALIZANDO EL SISTEMA"
-echo -e "🔄 Ejecutando apt update..."
-spinner apt update -y
+echo -e "🔄 Ejecutando actualización..."
+case "$OS_ID" in
+  debian|ubuntu)
+    spinner apt update -y
+    ;;
+  centos|rhel|rocky|almalinux)
+    spinner yum update -y
+    ;;
+  arch)
+    spinner pacman -Syu --noconfirm
+    ;;
+  *)
+    echo -e "${ROJO}⚠️ Sistema no compatible para actualización automática.${NEUTRO}"
+    ;;
+esac
 
-# 🔧 Configuración SSH
+# 🔧 Configurar acceso root por SSH
 print_section "🔧 CONFIGURANDO ACCESO ROOT POR SSH"
 
 SSH_CONFIG="/etc/ssh/sshd_config"
 SSH_CONFIG_CLOUDIMG="/etc/ssh/sshd_config.d/60-cloudimg-settings.conf"
 
-# Backup
-if [[ -f "$SSH_CONFIG" ]]; then
-  cp "$SSH_CONFIG" "${SSH_CONFIG}.bak"
-fi
+[[ -f "$SSH_CONFIG" ]] && cp "$SSH_CONFIG" "${SSH_CONFIG}.bak"
 
-# Función para establecer o agregar directivas SSH
 set_ssh_option() {
   local key="$1"
   local value="$2"
@@ -102,11 +124,9 @@ set_ssh_option() {
 set_ssh_option "PermitRootLogin" "yes"
 set_ssh_option "PasswordAuthentication" "yes"
 
-if [[ -f "$SSH_CONFIG_CLOUDIMG" ]]; then
-  sed -i "s/^PasswordAuthentication no/PasswordAuthentication yes/" "$SSH_CONFIG_CLOUDIMG"
-fi
+[[ -f "$SSH_CONFIG_CLOUDIMG" ]] && sed -i "s/^PasswordAuthentication no/PasswordAuthentication yes/" "$SSH_CONFIG_CLOUDIMG"
 
-# Verificar configuración
+# Verificar SSH
 if ! sshd -t 2>/tmp/sshd_error.log; then
   echo -e "${ROJO}❌ Error en configuración SSHD:${NEUTRO}"
   cat /tmp/sshd_error.log
@@ -114,11 +134,11 @@ if ! sshd -t 2>/tmp/sshd_error.log; then
 fi
 
 # Reiniciar SSH
-echo -e "🔄 Reiniciando SSH para aplicar cambios..."
+echo -e "🔄 Reiniciando SSH..."
 if systemctl restart ssh 2>/dev/null || service ssh restart; then
   echo -e "${VERDE}✅ SSH reiniciado correctamente.${NEUTRO}"
 else
-  echo -e "${ROJO}❌ Fallo al reiniciar el servicio SSH.${NEUTRO}"
+  echo -e "${ROJO}❌ Fallo al reiniciar SSH.${NEUTRO}"
   exit 1
 fi
 
@@ -126,14 +146,14 @@ fi
 print_section "🔐 CONFIGURANDO CONTRASEÑA DE ROOT"
 
 while true; do
-  echo -ne "${VERDE}${NEGRITA}📝 Ingresa la nueva contraseña para el usuario ROOT:${NEUTRO} "
+  echo -ne "${VERDE}${NEGRITA}📝 Ingresa nueva contraseña para ROOT:${NEUTRO} "
   read -s pass1
   echo
-  echo -ne "${VERDE}${NEGRITA}🔁 Confirma la nueva contraseña:${NEUTRO} "
+  echo -ne "${VERDE}${NEGRITA}🔁 Confirma la contraseña:${NEUTRO} "
   read -s pass2
   echo
   if [[ -z "$pass1" ]]; then
-    echo -e "${ROJO}❌ No ingresaste ninguna contraseña. Cancelando...${NEUTRO}"
+    echo -e "${ROJO}❌ No se ingresó ninguna contraseña. Cancelando...${NEUTRO}"
     exit 1
   elif [[ "$pass1" != "$pass2" ]]; then
     echo -e "${ROJO}❌ Las contraseñas no coinciden. Intenta de nuevo.${NEUTRO}"
@@ -144,9 +164,9 @@ while true; do
   fi
 done
 
-# ⚠️ Advertencia de seguridad
-echo -e "\n${ROJO}${NEGRITA}⚠️ IMPORTANTE:${NEUTRO} Este script habilita el acceso SSH root con contraseña."
-echo -e "${ROJO}Se recomienda combinarlo con medidas de seguridad como fail2ban, firewall o VPN.${NEUTRO}"
+# 🛡️ Advertencia de seguridad
+echo -e "\n${ROJO}${NEGRITA}⚠️ IMPORTANTE:${NEUTRO} El acceso root por contraseña está habilitado."
+echo -e "${ROJO}Se recomienda usar medidas de seguridad adicionales (fail2ban, firewall, VPN).${NEUTRO}"
 
-# 🎉 Final
+# ✅ Final
 print_section "🎉 SCRIPT FINALIZADO CON ÉXITO"
