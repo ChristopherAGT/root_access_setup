@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # ╔══════════════════════════════════════════════════════════════════════╗
-# ║       🔐 SCRIPT DE CONFIGURACIÓN DE ROOT Y SSH                                    ║
-# ║       👾 Autor: ChristopherAGT - Guatemalteco 🇬🇹                                  ║
+# ║       🔐 SCRIPT DE CONFIGURACIÓN DE ROOT Y SSH                       ║
+# ║           Autor: ChristopherAGT - Guatemalteco 🇬🇹                   ║
 # ╚══════════════════════════════════════════════════════════════════════╝
 
 # 🎨 Colores y formato
@@ -15,18 +15,21 @@ NEUTRO="\033[0m"
 
 # 🌀 Spinner de carga (solo para comandos largos)
 spinner() {
+  local pid
   "$@" &> /dev/null &
-  local pid=$!
+  pid=$!
   local delay=0.1
   local spinstr='|/-\'
   echo -ne "${AMARILLO}"
   while ps -p $pid &>/dev/null; do
-    printf "\r [%c]  " "${spinstr:0:1}"
-    spinstr=${spinstr:1}${spinstr:0:1}
+    local temp=${spinstr#?}
+    printf " [%c]  " "$spinstr"
+    spinstr=$temp${spinstr%"$temp"}
     sleep $delay
+    printf "\b\b\b\b\b\b"
   done
   wait $pid 2>/dev/null
-  echo -ne "\r${NEUTRO}"
+  echo -ne "${NEUTRO}"
 }
 
 # 📦 Imprimir sección visual
@@ -47,12 +50,12 @@ if [[ "$EUID" -ne 0 ]]; then
 fi
 
 clear
-print_section "⚙️ PREPARANDO EL ENTORNO DE ACCESO AL SERVIDOR"
+print_section "🔐 INICIANDO CONFIGURACIÓN DE ROOT Y SSH"
 
 # 🧹 Limpiar iptables
 print_section "🧹 LIMPIANDO REGLAS DE IPTABLES"
 echo -e "🔄 Limpiando reglas de iptables..."
-iptables -F
+iptables -F || echo -e "${ROJO}❌ Error al limpiar iptables.${NEUTRO}"
 
 # ➕ Permitir tráfico esencial
 iptables -A INPUT -i lo -j ACCEPT
@@ -67,12 +70,12 @@ cat > /etc/resolv.conf <<EOF
 nameserver 1.1.1.1
 nameserver 8.8.8.8
 EOF
+chattr +i /etc/resolv.conf 2>/dev/null
 
 # 📦 Actualizar paquetes
 print_section "📦 ACTUALIZANDO EL SISTEMA"
-echo -e "🔄 Ejecutando apt update y upgrade..."
-spinner apt update
-apt upgrade -y
+echo -e "🔄 Ejecutando apt update..."
+spinner apt update -y
 
 # 🔧 Configuración SSH
 print_section "🔧 CONFIGURANDO ACCESO ROOT POR SSH"
@@ -80,44 +83,66 @@ print_section "🔧 CONFIGURANDO ACCESO ROOT POR SSH"
 SSH_CONFIG="/etc/ssh/sshd_config"
 SSH_CONFIG_CLOUDIMG="/etc/ssh/sshd_config.d/60-cloudimg-settings.conf"
 
-# Backup antes de modificar
-cp "$SSH_CONFIG" "${SSH_CONFIG}.bak"
+# Backup
+if [[ -f "$SSH_CONFIG" ]]; then
+  cp "$SSH_CONFIG" "${SSH_CONFIG}.bak"
+fi
 
-# Configurar directivas válidas
-sed -i "s/^#\?PermitRootLogin.*/PermitRootLogin yes/" "$SSH_CONFIG"
-sed -i "s/^#\?PasswordAuthentication.*/PasswordAuthentication yes/" "$SSH_CONFIG"
+# Función para establecer o agregar directivas SSH
+set_ssh_option() {
+  local key="$1"
+  local value="$2"
+  if grep -qE "^#?\s*${key}" "$SSH_CONFIG"; then
+    sed -i "s|^#\?\s*${key}.*|${key} ${value}|" "$SSH_CONFIG"
+  else
+    echo "${key} ${value}" >> "$SSH_CONFIG"
+  fi
+}
+
+set_ssh_option "PermitRootLogin" "yes"
+set_ssh_option "PasswordAuthentication" "yes"
 
 if [[ -f "$SSH_CONFIG_CLOUDIMG" ]]; then
   sed -i "s/^PasswordAuthentication no/PasswordAuthentication yes/" "$SSH_CONFIG_CLOUDIMG"
 fi
 
-# Verificar configuración antes de reiniciar
+# Verificar configuración
 if ! sshd -t 2>/tmp/sshd_error.log; then
-  echo -e "${ROJO}❌  Error en configuración SSHD.${NEUTRO}"
+  echo -e "${ROJO}❌ Error en configuración SSHD:${NEUTRO}"
   cat /tmp/sshd_error.log
   exit 1
 fi
 
-# Reiniciar servicio SSH
+# Reiniciar SSH
 echo -e "🔄 Reiniciando SSH para aplicar cambios..."
-systemctl restart ssh 2>/dev/null || service ssh restart
-
-# 🔐 Cambiar contraseña root
-print_section "🔐 CONFIGURANDO CONTRASEÑA DE ROOT"
-echo -ne "${VERDE}${NEGRITA}📝 Ingresa la nueva contraseña para el usuario ROOT:${NEUTRO} "
-read -s nueva_pass
-echo
-echo -ne "${VERDE}${NEGRITA}🔁 Confirma la contraseña:${NEUTRO} "
-read -s confirm_pass
-echo
-
-if [[ -z "$nueva_pass" || "$nueva_pass" != "$confirm_pass" ]]; then
-  echo -e "${ROJO}❌ Las contraseñas no coinciden o están vacías. Cancelando...${NEUTRO}"
+if systemctl restart ssh 2>/dev/null || service ssh restart; then
+  echo -e "${VERDE}✅ SSH reiniciado correctamente.${NEUTRO}"
+else
+  echo -e "${ROJO}❌ Fallo al reiniciar el servicio SSH.${NEUTRO}"
   exit 1
 fi
 
-echo "root:$nueva_pass" | chpasswd
-echo -e "${VERDE}✅  Contraseña actualizada correctamente.${NEUTRO}"
+# 🔐 Cambiar contraseña root
+print_section "🔐 CONFIGURANDO CONTRASEÑA DE ROOT"
+
+while true; do
+  echo -ne "${VERDE}${NEGRITA}📝 Ingresa la nueva contraseña para el usuario ROOT:${NEUTRO} "
+  read -s pass1
+  echo
+  echo -ne "${VERDE}${NEGRITA}🔁 Confirma la nueva contraseña:${NEUTRO} "
+  read -s pass2
+  echo
+  if [[ -z "$pass1" ]]; then
+    echo -e "${ROJO}❌ No ingresaste ninguna contraseña. Cancelando...${NEUTRO}"
+    exit 1
+  elif [[ "$pass1" != "$pass2" ]]; then
+    echo -e "${ROJO}❌ Las contraseñas no coinciden. Intenta de nuevo.${NEUTRO}"
+  else
+    echo "root:$pass1" | chpasswd
+    echo -e "${VERDE}✅ Contraseña actualizada correctamente.${NEUTRO}"
+    break
+  fi
+done
 
 # ⚠️ Advertencia de seguridad
 echo -e "\n${ROJO}${NEGRITA}⚠️ IMPORTANTE:${NEUTRO} Este script habilita el acceso SSH root con contraseña."
