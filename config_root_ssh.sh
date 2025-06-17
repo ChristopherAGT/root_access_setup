@@ -183,7 +183,7 @@ echo -e "${AZUL}ℹ Puedes conectarte vía SSH así:${NEUTRO}"
 #echo -e "${NEGRITA}➡️ root@$(hostname -I | awk '{print $1}')${NEUTRO}"
 
 # IP pública (internet)
-PUBLIC_IP=$(curl -s ifconfig.co)
+PUBLIC_IP=$(curl -s https://ipv4.icanhazip.com)
 if [[ -n "$PUBLIC_IP" ]]; then
   echo -e "${NEGRITA}➡️ root@${PUBLIC_IP}${NEUTRO}"
 fi
