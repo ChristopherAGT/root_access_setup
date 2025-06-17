@@ -20,16 +20,15 @@ spinner() {
   pid=$!
   local delay=0.1
   local spinstr='|/-\'
-  echo -ne "${AMARILLO}"
+  echo -ne "${AMARILLO} [-]${NEUTRO}"
   while ps -p $pid &>/dev/null; do
     local temp=${spinstr#?}
-    printf " [%c]  " "$spinstr"
+    printf "\b\b\b\b\b[%c]" "$spinstr"
     spinstr=$temp${spinstr%"$temp"}
     sleep $delay
-    printf "\b\b\b\b\b\b"
   done
   wait $pid 2>/dev/null
-  echo -ne "${NEUTRO}"
+  printf "\b\b\b\b\b${VERDE}✅${NEUTRO}\n"
 }
 
 # 🖼️ Sección visual destacada
@@ -67,8 +66,9 @@ print_section "⚙️ INICIANDO CONFIGURACIÓN DE ROOT Y SSH EN $OS_NAME"
 
 # 🧹 Limpiar iptables
 print_section "🧹 LIMPIANDO REGLAS DE IPTABLES"
-echo -e "🔄 Limpiando reglas de iptables..."
-iptables -F || echo -e "${ROJO}❌ Error al limpiar iptables.${NEUTRO}"
+echo -e "🔄 Aplicando limpieza de reglas actuales..."
+spinner iptables -F || echo -e "${ROJO}❌ Error al limpiar iptables.${NEUTRO}"
+echo -e "${VERDE}✅ Reglas iptables limpiadas con éxito.${NEUTRO}"
 
 # ➕ Permitir tráfico básico
 iptables -A INPUT -i lo -j ACCEPT
@@ -77,17 +77,18 @@ iptables -A INPUT -p tcp --dport 22 -j ACCEPT
 
 # 🌐 Configurar DNS
 print_section "🌍 CONFIGURANDO DNS DE CLOUDFLARE Y GOOGLE"
-echo -e "🔄 Estableciendo DNS..."
+echo -e "🔄 Estableciendo servidores DNS..."
 chattr -i /etc/resolv.conf 2>/dev/null
 cat > /etc/resolv.conf <<EOF
 nameserver 1.1.1.1
 nameserver 8.8.8.8
 EOF
 chattr +i /etc/resolv.conf 2>/dev/null
+echo -e "${VERDE}✅ DNS configurado correctamente.${NEUTRO}"
 
 # 📦 Actualizar sistema según distro
 print_section "📦 ACTUALIZANDO EL SISTEMA"
-echo -e "🔄 Ejecutando actualización..."
+echo -ne "🔄 Ejecutando actualización..."
 case "$OS_ID" in
   debian|ubuntu)
     spinner apt update -y
@@ -99,9 +100,10 @@ case "$OS_ID" in
     spinner pacman -Syu --noconfirm
     ;;
   *)
-    echo -e "${ROJO}⚠️ Sistema no compatible para actualización automática.${NEUTRO}"
+    echo -e "\n${ROJO}⚠️ Sistema no compatible para actualización automática.${NEUTRO}"
     ;;
 esac
+echo -e "${VERDE}✅ Actualización completada.${NEUTRO}"
 
 # 🔧 Configurar acceso root por SSH
 print_section "🔧 CONFIGURANDO ACCESO ROOT POR SSH"
