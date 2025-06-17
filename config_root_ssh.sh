@@ -13,22 +13,26 @@ AZUL="\033[1;34m"
 NEGRITA="\033[1m"
 NEUTRO="\033[0m"
 
-# 🌀 Spinner para comandos largos
+# 🌀 Spinner con mensaje incluido
 spinner() {
-  local pid
+  local msg="$1"
+  shift
   "$@" &> /dev/null &
-  pid=$!
+  local pid=$!
   local delay=0.1
   local spinstr='|/-\'
-  echo -ne "${AMARILLO} [-]${NEUTRO}"
+
+  echo -ne "${AMARILLO}🔄 ${msg}... ${NEUTRO}"
+  printf "%c" "${spinstr:0:1}"
+
   while ps -p $pid &>/dev/null; do
-    local temp=${spinstr#?}
-    printf "\b\b\b\b\b[%c]" "$spinstr"
-    spinstr=$temp${spinstr%"$temp"}
+    local temp=${spinstr#?}${spinstr:0:1}
+    printf "\b%c" "${temp:0:1}"
+    spinstr=$temp
     sleep $delay
   done
   wait $pid 2>/dev/null
-  printf "\b\b\b\b\b${VERDE}✅${NEUTRO}\n"
+  printf "\b${VERDE}✅${NEUTRO}\n"
 }
 
 # 🖼️ Sección visual destacada
@@ -67,7 +71,7 @@ print_section "⚙️ INICIANDO CONFIGURACIÓN DE ROOT Y SSH EN $OS_NAME"
 # 🧹 Limpiar iptables
 print_section "🧹 LIMPIANDO REGLAS DE IPTABLES"
 echo -e "🔄 Aplicando limpieza de reglas actuales..."
-spinner iptables -F || echo -e "${ROJO}❌ Error al limpiar iptables.${NEUTRO}"
+spinner "Limpiando iptables" iptables -F || echo -e "${ROJO}❌ Error al limpiar iptables.${NEUTRO}"
 echo -e "${VERDE}✅ Reglas iptables limpiadas con éxito.${NEUTRO}"
 
 # ➕ Permitir tráfico básico
@@ -88,16 +92,15 @@ echo -e "${VERDE}✅ DNS configurado correctamente.${NEUTRO}"
 
 # 📦 Actualizar sistema según distro
 print_section "📦 ACTUALIZANDO EL SISTEMA"
-echo -ne "🔄 Ejecutando actualización..."
 case "$OS_ID" in
   debian|ubuntu)
-    spinner apt update -y
+    spinner "Ejecutando actualización" apt update -y
     ;;
   centos|rhel|rocky|almalinux)
-    spinner yum update -y
+    spinner "Ejecutando actualización" yum update -y
     ;;
   arch)
-    spinner pacman -Syu --noconfirm
+    spinner "Ejecutando actualización" pacman -Syu --noconfirm
     ;;
   *)
     echo -e "\n${ROJO}⚠️ Sistema no compatible para actualización automática.${NEUTRO}"
