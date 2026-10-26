@@ -15,17 +15,17 @@ umask 077
 # ============================================================
 
 if [[ -t 1 ]]; then
-    RESET='\033[0m'
-    BOLD='\033[1m'
-    DIM='\033[2m'
-    CYAN='\033[1;36m'
-    BLUE='\033[1;34m'
-    GREEN='\033[1;32m'
-    YELLOW='\033[1;33m'
-    RED='\033[1;31m'
-    WHITE='\033[1;37m'
-    MAGENTA='\033[1;35m'
-    GRAY='\033[0;37m'
+    RESET=$'\033[0m'
+    BOLD=$'\033[1m'
+    DIM=$'\033[2m'
+    CYAN=$'\033[1;36m'
+    BLUE=$'\033[1;34m'
+    GREEN=$'\033[1;32m'
+    YELLOW=$'\033[1;33m'
+    RED=$'\033[1;31m'
+    WHITE=$'\033[1;37m'
+    MAGENTA=$'\033[1;35m'
+    GRAY=$'\033[0;37m'
 else
     RESET='' BOLD='' DIM='' CYAN='' BLUE=''
     GREEN='' YELLOW='' RED='' WHITE=''
@@ -55,15 +55,18 @@ title() {
 }
 
 ok() {
-    printf '  %b✓%b  %b%s%b\n' "$GREEN$BOLD" "$RESET" "$WHITE" "$1" "$RESET"
+    printf '  %b✓%b  %b%s%b\n' \
+        "$GREEN$BOLD" "$RESET" "$WHITE" "$1" "$RESET"
 }
 
 fail() {
-    printf '  %b✗%b  %b%s%b\n' "$RED$BOLD" "$RESET" "$WHITE" "$1" "$RESET" >&2
+    printf '  %b✗%b  %b%s%b\n' \
+        "$RED$BOLD" "$RESET" "$WHITE" "$1" "$RESET" >&2
 }
 
 warn() {
-    printf '  %b!%b  %b%s%b\n' "$YELLOW$BOLD" "$RESET" "$YELLOW" "$1" "$RESET"
+    printf '  %b!%b  %b%s%b\n' \
+        "$YELLOW$BOLD" "$RESET" "$YELLOW" "$1" "$RESET"
 }
 
 detail() {
@@ -72,8 +75,12 @@ detail() {
 
 # Etiquetas y valores alineados
 field() {
+    local label="$1"
+    local value="$2"
+    local style="${3:-$WHITE}"
+
     printf '  %b%-21s%b %b%s%b\n' \
-        "$GRAY" "$1" "$RESET" "$2" "$3" "$RESET"
+        "$GRAY" "$label" "$RESET" "$style" "$value" "$RESET"
 }
 
 cleanup() {
@@ -236,8 +243,8 @@ printf '\n'
 line
 printf '\n'
 
-printf '  %b¿Aplicar el cambio?%b [%bS%b/n]: ' \
-    "$WHITE$BOLD" "$RESET" "$GREEN$BOLD" "$RESET"
+# La pregunta y la S se muestran sin colores.
+printf '  ¿Aplicar el cambio? [S/n]: '
 
 IFS= read -r CONFIRM || CONFIRM=""
 
