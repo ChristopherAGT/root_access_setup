@@ -443,11 +443,21 @@ printf '  %b✓%b  %bEntradas IPv6 y localhost preservadas.%b\n' \
 printf '  %b✓%b  %bNo se requiere reiniciar el VPS.%b\n' \
     "$GREEN$BOLD" "$RESET" "$WHITE" "$RESET"
 
-printf '\n'
+# ============================================================
+# ENTRADAS LOCALES ALINEADAS
+# ============================================================
+
 title "ENTRADAS LOCALES"
 
+printf '\n'
+printf '  %b%-18s%b %s\n' "$CYAN" "DIRECCIÓN IP" "$RESET" "HOSTNAME / ALIAS"
+line
+
 while IFS= read -r HOST_LINE; do
-    printf '  %b›%b  %s\n' "$CYAN" "$RESET" "$HOST_LINE"
+    read -r IP_ADDRESS HOST_ALIASES <<< "$HOST_LINE"
+
+    printf '  %b%-18s%b %s\n' \
+        "$GREEN" "$IP_ADDRESS" "$RESET" "$HOST_ALIASES"
 done < <(
     grep -E '^(127\.0\.0\.1|127\.0\.1\.1|::1)[[:space:]]' \
         "$HOSTS_FILE" || true
