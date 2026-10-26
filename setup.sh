@@ -2,16 +2,15 @@
 
 # ============================================================
 # GESTOR DE HOSTNAME VPS
-# Compatible con Ubuntu y Debian
+# Ubuntu / Debian | Validación | Respaldo | Verificación
 # Conserva mayúsculas y minúsculas
-# Respaldo, validación y verificación de cambios
 # ============================================================
 
 set -Eeuo pipefail
 umask 077
 
 # ============================================================
-# COLORES DE LA INTERFAZ
+# PALETA DE COLORES
 # ============================================================
 
 if [[ -t 1 ]]; then
@@ -32,15 +31,20 @@ else
     MAGENTA='' GRAY=''
 fi
 
+# ============================================================
+# CONFIGURACIÓN
+# ============================================================
+
 HOSTS_FILE="/etc/hosts"
 BACKUP_DIR="/var/backups/hostname-manager"
+
 TMP_FILE=""
 BACKUP_FILE=""
 OLD_HOST=""
 CHANGE_STARTED=0
 
 # ============================================================
-# INTERFAZ
+# COMPONENTES DE INTERFAZ
 # ============================================================
 
 line() {
@@ -48,23 +52,37 @@ line() {
         '────────────────────────────────────────────────────' "$RESET"
 }
 
-title() {
+header() {
+    clear 2>/dev/null || true
+
     printf '\n'
-    printf '  %b%s%b\n' "$CYAN$BOLD" "$1" "$RESET"
+    printf '  %b◆%b  %bHOSTNAME MANAGER%b\n' \
+        "$CYAN" "$RESET" "$WHITE$BOLD" "$RESET"
+
+    printf '     %bAdministración del nombre del servidor%b\n' \
+        "$GRAY" "$RESET"
+
     line
 }
 
-ok() {
+section() {
+    printf '\n'
+    printf '  %b▸%b  %b%s%b\n' \
+        "$CYAN$BOLD" "$RESET" "$WHITE$BOLD" "$1" "$RESET"
+    line
+}
+
+success() {
     printf '  %b✓%b  %b%s%b\n' \
         "$GREEN$BOLD" "$RESET" "$WHITE" "$1" "$RESET"
 }
 
-fail() {
+error() {
     printf '  %b✗%b  %b%s%b\n' \
         "$RED$BOLD" "$RESET" "$WHITE" "$1" "$RESET" >&2
 }
 
-warn() {
+warning() {
     printf '  %b!%b  %b%s%b\n' \
         "$YELLOW$BOLD" "$RESET" "$YELLOW" "$1" "$RESET"
 }
@@ -73,7 +91,6 @@ detail() {
     printf '  %b›%b  %s\n' "$CYAN" "$RESET" "$1"
 }
 
-# Etiquetas y valores alineados.
 field() {
     local label="$1"
     local value="$2"
@@ -81,6 +98,14 @@ field() {
 
     printf '  %b%-21s%b %b%s%b\n' \
         "$GRAY" "$label" "$RESET" "$style" "$value" "$RESET"
+}
+
+status() {
+    local label="$1"
+    local value="$2"
+
+    printf '  %b●%b  %-25s %b%s%b\n' \
+        "$GREEN" "$RESET" "$label" "$GREEN$BOLD" "$value" "$RESET"
 }
 
 cleanup() {
@@ -99,10 +124,10 @@ on_error() {
     local code=$?
     trap - ERR
 
-    fail "La operación falló (código $code)."
+    error "La operación falló (código $code)."
 
     if (( CHANGE_STARTED == 1 )); then
-        warn "Comprueba el hostname y el archivo /etc/hosts."
+        warning "Revisa el hostname y el archivo /etc/hosts."
 
         if [[ -n "$BACKUP_FILE" && -f "$BACKUP_FILE" ]]; then
             detail "Respaldo disponible: $BACKUP_FILE"
@@ -119,93 +144,96 @@ trap on_error ERR
 # ============================================================
 
 if (( EUID != 0 )); then
-    fail "Debes ejecutar este script como root."
+    error "Este script debe ejecutarse como root."
     detail "Ejemplo: sudo bash hostname-manager.sh"
     exit 1
 fi
 
-for cmd in hostnamectl python3 mktemp cp mv date uname grep; do
+for cmd in hostnamectl python3 mktemp cp mv date uname grep chmod chown; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
-        fail "No se encontró el comando requerido: $cmd"
+        error "No se encontró el comando requerido: $cmd"
         exit 1
     fi
 done
 
 if [[ ! -f "$HOSTS_FILE" || ! -r "$HOSTS_FILE" ||
       ! -w "$HOSTS_FILE" ]]; then
-    fail "No se puede leer o modificar $HOSTS_FILE."
+    error "No se puede leer o modificar $HOSTS_FILE."
     exit 1
 fi
 
 if ! hostnamectl --static >/dev/null 2>&1; then
-    fail "No se pudo consultar el hostname actual."
+    error "No se pudo consultar el hostname actual."
     exit 1
 fi
 
 CURRENT_HOST="$(hostnamectl --static)"
 OLD_HOST="$CURRENT_HOST"
 
-# ============================================================
-# PANTALLA PRINCIPAL
-# ============================================================
-
-clear 2>/dev/null || true
-
-title "GESTOR DE HOSTNAME VPS"
-
-printf '\n'
-
-field "Hostname actual:" "$CURRENT_HOST" "$YELLOW$BOLD"
-
 OS_NAME="$(
     . /etc/os-release
     printf '%s' "${PRETTY_NAME:-Linux}"
 )"
 
-field "Sistema operativo:" "$OS_NAME" "$WHITE"
-field "Arquitectura:" "$(uname -m)" "$MAGENTA"
-field "Archivo de hosts:" "$HOSTS_FILE" "$CYAN"
+ARCH="$(uname -m)"
+
+# ============================================================
+# PANEL PRINCIPAL
+# ============================================================
+
+header
+
+section "INFORMACIÓN DEL SERVIDOR"
+
+field "Hostname actual" "$CURRENT_HOST" "$YELLOW$BOLD"
+field "Sistema operativo" "$OS_NAME" "$WHITE"
+field "Arquitectura" "$ARCH" "$MAGENTA"
+field "Archivo de hosts" "$HOSTS_FILE" "$CYAN"
 
 printf '\n'
 line
-printf '\n'
 
-ok "Configuración lista para comenzar."
-ok "Se conservarán las entradas IPv6 y localhost."
-ok "El hostname podrá conservar las mayúsculas."
+printf '  %b●%b  %bSistema preparado para configurar%b\n' \
+    "$GREEN" "$RESET" "$WHITE" "$RESET"
+
+detail "Se conservarán las mayúsculas y minúsculas."
+detail "Se preservarán las entradas IPv6 y localhost."
+detail "Se creará un respaldo antes de modificar los archivos."
 
 # ============================================================
 # SOLICITUD Y VALIDACIÓN DEL HOSTNAME
 # ============================================================
 
+section "NUEVA CONFIGURACIÓN"
+
 while true; do
     printf '\n'
-    printf '  %bNuevo hostname%b: ' "$CYAN$BOLD" "$RESET"
+    printf '  %bNombre del nuevo hostname%b\n' "$WHITE$BOLD" "$RESET"
+    printf '  %b›%b ' "$CYAN" "$RESET"
 
     if ! IFS= read -r NEW_HOST; then
         printf '\n'
-        fail "No se recibió ningún nombre."
+        error "No se recibió ningún nombre."
         exit 1
     fi
 
-    # Eliminar espacios externos sin cambiar mayúsculas.
+    # Eliminar espacios externos sin modificar las mayúsculas.
     NEW_HOST="${NEW_HOST#"${NEW_HOST%%[![:space:]]*}"}"
     NEW_HOST="${NEW_HOST%"${NEW_HOST##*[![:space:]]}"}"
 
     if [[ -z "$NEW_HOST" ]]; then
-        fail "El hostname no puede estar vacío."
+        error "El hostname no puede estar vacío."
         continue
     fi
 
     if (( ${#NEW_HOST} > 64 )); then
-        fail "El hostname no puede superar 64 caracteres."
+        error "El hostname no puede superar 64 caracteres."
         continue
     fi
 
-    # Admitir letras mayúsculas y minúsculas.
     if [[ ! "$NEW_HOST" =~ ^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$ ]]; then
-        fail "Usa letras, números, puntos o guiones."
-        fail "No utilices espacios ni guiones en los extremos."
+        error "Usa letras, números, puntos o guiones."
+        error "No utilices espacios ni guiones en los extremos."
         continue
     fi
 
@@ -221,7 +249,7 @@ while true; do
     done
 
     if (( VALID_HOST == 0 )); then
-        fail "Una sección del hostname tiene un formato inválido."
+        error "Una sección del hostname tiene un formato inválido."
         continue
     fi
 
@@ -232,43 +260,42 @@ done
 # RESUMEN Y CONFIRMACIÓN
 # ============================================================
 
-title "RESUMEN DEL CAMBIO"
+section "REVISIÓN DE CAMBIOS"
 
 printf '\n'
 
-field "Hostname anterior:" "$CURRENT_HOST" "$YELLOW"
-field "Hostname nuevo:" "$NEW_HOST" "$GREEN$BOLD"
+field "Hostname anterior" "$CURRENT_HOST" "$YELLOW"
+field "Hostname nuevo" "$NEW_HOST" "$GREEN$BOLD"
 
 printf '\n'
 line
-printf '\n'
 
-# La pregunta y la S se muestran sin colores.
-printf '  ¿Aplicar el cambio? [S/n]: '
+if [[ "$CURRENT_HOST" == "$NEW_HOST" ]]; then
+    warning "El nombre introducido coincide con el actual."
+fi
+
+printf '\n'
+printf '  %b¿Deseas aplicar los cambios?%b [S/n]: ' \
+    "$WHITE$BOLD" "$RESET"
 
 IFS= read -r CONFIRM || CONFIRM=""
 
-# S/n: Enter acepta; n cancela.
 if [[ -n "$CONFIRM" ]]; then
     CONFIRM="${CONFIRM,,}"
 
     if [[ "$CONFIRM" != "s" &&
           "$CONFIRM" != "si" &&
           "$CONFIRM" != "sí" ]]; then
-        warn "Operación cancelada. No se realizaron cambios."
+        warning "Operación cancelada. No se realizaron cambios."
         exit 0
     fi
 fi
 
-if [[ "$CURRENT_HOST" == "$NEW_HOST" ]]; then
-    ok "El hostname ya coincide con el nombre solicitado."
-fi
-
 # ============================================================
-# RESPALDO
+# RESPALDO DE SEGURIDAD
 # ============================================================
 
-title "APLICANDO CONFIGURACIÓN"
+section "RESPALDO DE SEGURIDAD"
 
 mkdir -p "$BACKUP_DIR"
 chmod 700 "$BACKUP_DIR"
@@ -277,18 +304,20 @@ BACKUP_FILE="$BACKUP_DIR/hosts-$(date +%Y%m%d-%H%M%S)-$$.bak"
 
 cp -a -- "$HOSTS_FILE" "$BACKUP_FILE"
 
-ok "Respaldo creado correctamente."
+success "Respaldo creado correctamente."
 detail "$BACKUP_FILE"
 
-# Crear temporal en el mismo sistema de archivos.
+# Preparar un archivo temporal en el mismo sistema de archivos.
 TMP_FILE="$(mktemp /etc/.hosts.hostname.XXXXXX)"
 
 chmod --reference="$HOSTS_FILE" "$TMP_FILE"
 chown --reference="$HOSTS_FILE" "$TMP_FILE"
 
 # ============================================================
-# ACTUALIZACIÓN SEGURA DE /etc/hosts
+# PREPARAR /etc/hosts
 # ============================================================
+
+section "PREPARANDO CONFIGURACIÓN"
 
 if ! python3 - "$HOSTS_FILE" "$TMP_FILE" "$NEW_HOST" <<'PY'
 import ipaddress
@@ -353,42 +382,53 @@ with open(destination, "w", encoding="utf-8") as f:
     f.writelines(result)
 PY
 then
-    fail "No se pudo preparar /etc/hosts."
+    error "No se pudo preparar el archivo /etc/hosts."
     exit 1
 fi
+
+success "Archivo de configuración preparado."
+detail "Las entradas IPv6 y localhost se mantienen."
 
 # ============================================================
 # APLICAR CAMBIOS
 # ============================================================
 
+section "APLICANDO CAMBIOS"
+
 CHANGE_STARTED=1
 
 if ! hostnamectl set-hostname "$NEW_HOST"; then
-    fail "No se pudo cambiar el hostname."
+    error "No se pudo cambiar el hostname."
     exit 1
 fi
 
+success "Hostname actualizado."
+
 # Reemplazo atómico del archivo.
 if ! mv -f -- "$TMP_FILE" "$HOSTS_FILE"; then
-    warn "No se pudo instalar el nuevo archivo /etc/hosts."
-    warn "Intentando restaurar el hostname anterior."
+    warning "No se pudo instalar el nuevo /etc/hosts."
+    warning "Intentando restaurar el hostname anterior."
 
     hostnamectl set-hostname "$OLD_HOST" || true
 
-    fail "El respaldo permanece disponible: $BACKUP_FILE"
+    error "El respaldo permanece disponible: $BACKUP_FILE"
     exit 1
 fi
 
 TMP_FILE=""
 
+success "Archivo /etc/hosts actualizado."
+
 # ============================================================
 # VERIFICACIÓN FINAL
 # ============================================================
 
+section "VERIFICACIÓN"
+
 FINAL_HOST="$(hostnamectl --static)"
 
 if [[ "$FINAL_HOST" != "$NEW_HOST" ]]; then
-    fail "El hostname resultante no coincide con el solicitado."
+    error "El hostname resultante no coincide con el solicitado."
     detail "Respaldo disponible: $BACKUP_FILE"
     exit 1
 fi
@@ -409,45 +449,40 @@ with open(path, encoding="utf-8") as f:
 sys.exit(1)
 PY
 then
-    fail "No se verificó la entrada de /etc/hosts."
+    error "No se verificó la entrada de /etc/hosts."
     detail "Respaldo disponible: $BACKUP_FILE"
     exit 1
 fi
 
+success "Hostname verificado."
+success "Entrada de /etc/hosts verificada."
+
 # ============================================================
-# RESULTADO FINAL
+# RESUMEN FINAL
 # ============================================================
 
-title "CAMBIO COMPLETADO"
+header
 
 printf '\n'
+printf '  %b✓  CONFIGURACIÓN COMPLETADA%b\n' \
+    "$GREEN$BOLD" "$RESET"
 
-field "Hostname:" "$FINAL_HOST" "$GREEN$BOLD"
-field "hostnamectl:" "Verificado" "$GREEN"
-field "/etc/hosts:" "Verificado" "$GREEN"
-field "Respaldo:" "Guardado" "$CYAN"
+printf '  %bEl hostname se actualizó correctamente.%b\n' \
+    "$WHITE" "$RESET"
+
+line
+
+section "ESTADO FINAL"
+
+status "Hostname" "$FINAL_HOST"
+status "hostnamectl" "Verificado"
+status "/etc/hosts" "Verificado"
+status "Respaldo" "Guardado"
 
 printf '\n'
 line
-printf '\n'
 
-printf '  %b✓%b  %bHostname actualizado correctamente.%b\n' \
-    "$GREEN$BOLD" "$RESET" "$WHITE" "$RESET"
-
-printf '  %b✓%b  %bMayúsculas y minúsculas conservadas.%b\n' \
-    "$GREEN$BOLD" "$RESET" "$WHITE" "$RESET"
-
-printf '  %b✓%b  %bEntradas IPv6 y localhost preservadas.%b\n' \
-    "$GREEN$BOLD" "$RESET" "$WHITE" "$RESET"
-
-printf '  %b✓%b  %bNo se requiere reiniciar el VPS.%b\n' \
-    "$GREEN$BOLD" "$RESET" "$WHITE" "$RESET"
-
-# ============================================================
-# ENTRADAS LOCALES
-# ============================================================
-
-title "ENTRADAS LOCALES"
+section "ENTRADAS LOCALES"
 
 while IFS= read -r HOST_LINE; do
     read -r IP_ADDRESS HOST_ALIASES <<< "$HOST_LINE"
@@ -463,5 +498,13 @@ done < <(
 
 printf '\n'
 line
-printf '  %b✓  PROCESO FINALIZADO%b\n' "$GREEN$BOLD" "$RESET"
+
+printf '  %b◆%b  %bPROCESO FINALIZADO%b\n' \
+    "$CYAN" "$RESET" "$GREEN$BOLD" "$RESET"
+
+printf '  %bNo es necesario reiniciar el VPS.%b\n' \
+    "$GRAY" "$RESET"
+
+printf '\n'
+detail "Respaldo: $BACKUP_FILE"
 printf '\n'
